@@ -86,7 +86,7 @@ infra/  .github/workflows/
 | --- | --- | --- |
 | 1 PoC | Setup, hotkey, mic, overlay, Scribe via dev token, paste | dictation < 1 s on 20 phrases |
 | 2 MVP | Backend, auth, sessions, rewrite/presets/templates, app detection, eval + timing | prompt p95 < 3 s; quality ≥ Lemon |
-| 3 Beta | Windows parity, signing, auto-update, quotas, observability, privacy, deletion | 50+ users × 2 weeks, > 99.5 % crash-free |
+| 3 Beta | macOS parity (Windows built first, ADR-010), signing, auto-update, quotas, observability, privacy, deletion | 50+ users × 2 weeks, > 99.5 % crash-free |
 | 4 Launch | Billing, plan limits, spend controls, kill-switch drill, load test | 3× peak load test passes |
 
 ## Complexity Tracking

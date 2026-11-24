@@ -1,6 +1,6 @@
 # Epic 1 — Foundation & Dictation Proof of Concept
 
-**Phase:** 1 · **Goal:** Stand up the monorepo and a Tauri client on one OS (macOS first) that captures speech with a global hotkey, streams to Scribe v3 Live via a dev-only token endpoint, and pastes clean text at the cursor.
+**Phase:** 1 · **Goal:** Stand up the monorepo and a Tauri client on one OS (Windows first, ADR-010) that captures speech with a global hotkey, streams to Scribe v3 Live via a dev-only token endpoint, and pastes clean text at the cursor.
 **Gate:** plain dictation release → inserted **< 1 s** on 20 test phrases.
 
 ---
@@ -21,7 +21,7 @@ As a user, I want the app to live in the menu bar/tray with an overlay that appe
 **Acceptance Criteria**
 1. Tauri v2 app launches into tray/menu bar with Settings and Quit items.
 2. A transparent, always-on-top, non-focusable overlay window exists, hidden by default.
-3. Showing the overlay does not steal focus from the frontmost app (verified in TextEdit/Notes and a browser).
+3. Showing the overlay does not steal focus from the frontmost app (verified in Notepad, Word and a browser).
 4. Overlay follows OS light/dark.
 
 ## Story 1.3 — Global hold-to-talk hotkey
@@ -68,7 +68,7 @@ As a user, I want the text typed where my cursor is without losing what I had co
 **Acceptance Criteria**
 1. `insert` saves clipboard contents (text and, where possible, other formats), writes result, sends Cmd+V (macOS) / Ctrl+V (Windows), restores clipboard in a `finally` path.
 2. macOS Accessibility permission is checked; if missing, onboarding guide is shown.
-3. Works in TextEdit, Notes, Chrome text fields, Slack desktop and VS Code/Cursor.
+3. Works in Notepad, Word, Chrome/Edge text fields, Slack desktop and VS Code/Cursor.
 4. Clipboard is restored even if paste fails.
 
 ## Story 1.8 — PoC timing gate

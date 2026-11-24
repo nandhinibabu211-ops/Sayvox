@@ -5,11 +5,11 @@
 
 ---
 
-## Story 5.1 — Windows client parity
+## Story 5.1 — macOS client parity (ADR-010)
 **Acceptance Criteria**
-1. Low-level keyboard hook for Ctrl+Shift hold; always-on-top non-activating overlay.
-2. Audio capture, active-app detection (exe name), Ctrl+V paste with clipboard restore.
-3. All Epic 1/3 behaviours pass on Windows 10 and 11.
+1. `CGEventTap` hotkey for Ctrl+Shift hold; non-activating `NSPanel` overlay; app runs as a menu-bar (Accessory) app.
+2. Audio capture, active-app detection (bundle id), Cmd+V paste with clipboard restore; Microphone, Accessibility and Input Monitoring permission onboarding.
+3. All Epic 1/3 behaviours pass on macOS 13+ (Apple Silicon and Intel), tested on real hardware.
 
 ## Story 5.2 — Release build pipeline (no paid signing)
 **Acceptance Criteria**

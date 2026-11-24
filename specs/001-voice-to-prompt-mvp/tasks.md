@@ -50,7 +50,7 @@ Tests are written first and must fail before implementation (Constitution V).
 
 ### Implementation
 - [ ] T026 [US1] Tray + pre-created non-activating overlay window — `src-tauri/src/main.rs`, `tauri.conf.json`
-- [ ] T027 [US1] macOS hotkey backend (CGEventTap) — `src-tauri/src/hotkey/macos.rs`
+- [ ] T027 [US1] Windows hotkey backend (`WH_KEYBOARD_LL`) — `src-tauri/src/hotkey/windows.rs` (ADR-010)
 - [ ] T028 [US1] Audio capture (cpal) + resample + ring buffer — `src-tauri/src/audio/`
 - [ ] T029 [US1] Limits module: rate limit, daily/monthly quota, maxSessionSeconds — `apps/api/src/modules/limits/`
 - [ ] T030 [US1] ElevenLabs token client — `apps/api/src/lib/elevenlabs/token.ts`
@@ -86,7 +86,7 @@ Tests are written first and must fail before implementation (Constitution V).
 - [ ] T048 [US2] OpenRouter streaming client, keep-alive pool, per-attempt 1.5 s TTFT deadline — `apps/api/src/lib/openrouter/`
 - [ ] T049 [US2] Startup validation of model slugs vs OpenRouter `/models` — `apps/api/src/modules/config/validateSlugs.ts`
 - [ ] T050 [US2] `POST /v1/rewrite` SSE (meta/token/fallback/done/error, abort on disconnect) — `apps/api/src/modules/rewrite/`
-- [ ] T051 [P] [US2] Active-app detection (macOS) — `src-tauri/src/active_app/macos.rs`
+- [ ] T051 [P] [US2] Active-app detection (Windows) — `src-tauri/src/active_app/windows.rs`
 - [ ] T052 [US2] Mode resolver + built-in app map — `apps/desktop/src/services/modeResolver.ts`
 - [ ] T053 [US2] Rewrite SSE client with timers — `apps/desktop/src/services/rewriteClient.ts`
 - [ ] T054 [US2] Overlay Rewriting state with streamed tokens + mode badge — `apps/desktop/src/overlay/`
@@ -125,9 +125,9 @@ Tests are written first and must fail before implementation (Constitution V).
 - [ ] T077 [US6] OpenRouter no-train/no-retain routing on every request; document ElevenLabs retention — `apps/api/src/lib/openrouter/`, `research.md`
 - [ ] T078 [US6] Privacy audit script (search Cloud Logging, Error Reporting, BigQuery, DB for test phrases) — `eval/privacy-audit/`
 
-## Phase 8: User Story 7 — Safe updates & Windows parity (P3)
-- [ ] T079 [P] [US7] Windows hotkey LL hook — `src-tauri/src/hotkey/windows.rs`
-- [ ] T080 [P] [US7] Windows active app + overlay flags + paste — `src-tauri/src/{active_app,insert}/windows.rs`
+## Phase 8: User Story 7 — Safe updates & macOS parity (P3)
+- [ ] T079 [P] [US7] macOS hotkey `CGEventTap` + permission onboarding — `src-tauri/src/hotkey/macos.rs` (ADR-010)
+- [ ] T080 [P] [US7] macOS active app + `NSPanel` overlay + Cmd+V paste — `src-tauri/src/{active_app,insert}/macos.rs`
 - [ ] T081 [US7] `GET /v1/client-config` + client poll, forced-update + kill-switch UI — `apps/api/src/modules/config/`, `apps/desktop/src/updates/`
 - [ ] T082 [US7] Tauri updater with signed manifests + staged rollout bucket — `apps/desktop/src-tauri/`, `apps/desktop/src/updates/`
 - [ ] T083 [US7] Release workflow: macOS universal self-signed (no notarization), Windows unsigned, SHA-256 checksums (ADR-007); verify macOS permissions survive an update — `.github/workflows/release.yml`
