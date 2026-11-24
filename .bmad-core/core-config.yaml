@@ -1,0 +1,28 @@
+# BMAD core configuration for Sayvox
+markdownExploder: true
+prd:
+  prdFile: docs/prd.md
+  prdVersion: v4
+  prdSharded: false
+  prdShardedLocation: docs/prd
+  epicFilePattern: epic-{n}*.md
+  epicsLocation: docs/epics
+architecture:
+  architectureFile: docs/architecture.md
+  architectureVersion: v4
+  architectureSharded: false
+  architectureShardedLocation: docs/architecture
+frontEndSpecFile: docs/front-end-spec.md
+projectBriefFile: docs/project-brief.md
+customTechnicalDocuments:
+  - specs/001-voice-to-prompt-mvp/research.md
+  - specs/001-voice-to-prompt-mvp/data-model.md
+  - specs/001-voice-to-prompt-mvp/contracts/openapi.yaml
+devLoadAlwaysFiles:
+  - docs/architecture.md#coding-standards
+  - docs/architecture.md#tech-stack
+  - docs/architecture.md#source-tree
+  - .specify/memory/constitution.md
+devDebugLog: .ai/debug-log.md
+devStoryLocation: docs/stories
+slashPrefix: BMad

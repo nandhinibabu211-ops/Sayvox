@@ -1,0 +1,378 @@
+openapi: 3.1.0
+info:
+  title: Sayvox API
+  version: 1.0.0
+  description: >
+    Stateless REST + SSE backend for Sayvox. Every /v1 route requires a Bearer JWT
+    unless marked `security: []`. Transcript text is never persisted or logged.
+servers:
+  - url: https://api.sayvox.app
+    description: production (placeholder)
+  - url: http://localhost:8787
+    description: local dev
+security:
+  - bearerAuth: []
+paths:
+  /healthz:
+    get:
+      security: []
+      summary: Liveness
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, properties: { status: { type: string, const: ok } } }
+
+  /v1/client-config:
+    get:
+      security: []
+      summary: Kill switch, minimum version, rollout flags
+      parameters:
+        - in: header
+          name: x-client-version
+          schema: { type: string }
+        - in: header
+          name: x-install-id
+          schema: { type: string }
+      responses:
+        "200":
+          description: Config
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClientConfig" }
+
+  /v1/session/start:
+    post:
+      summary: Quota check, create session, mint single-use Scribe token
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prefetch: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionStartResponse" }
+        "401": { $ref: "#/components/responses/Error" }
+        "402": { $ref: "#/components/responses/Error" }
+        "426": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/rewrite:
+    post:
+      summary: Stream a rewrite of the transcript (Server-Sent Events)
+      description: See contracts/rewrite-sse.md for event formats.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RewriteRequest" }
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/session/{id}/end:
+    post:
+      summary: Close a session with client timings
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SessionEndRequest" }
+      responses:
+        "204": { description: Closed (idempotent) }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /v1/settings:
+    get:
+      summary: Get settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+    put:
+      summary: Update settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /v1/dictionary:
+    get:
+      summary: List custom terms
+      responses:
+        "200":
+          description: Terms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  terms: { type: array, items: { $ref: "#/components/schemas/DictionaryTerm" } }
+                  limit: { type: integer }
+    post:
+      summary: Add a term
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [term]
+              properties:
+                term: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DictionaryTerm" }
+        "403": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /v1/dictionary/{id}:
+    delete:
+      summary: Remove a term
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Deleted }
+
+  /v1/usage:
+    get:
+      summary: Usage this period and plan limits
+      responses:
+        "200":
+          description: Usage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Usage" }
+
+  /v1/billing/checkout:
+    post:
+      summary: Create hosted checkout session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId: { type: string }
+      responses:
+        "200":
+          description: Checkout URL
+          content:
+            application/json:
+              schema: { type: object, properties: { url: { type: string, format: uri } } }
+
+  /v1/billing/webhook:
+    post:
+      security: []
+      summary: Razorpay webhook (X-Razorpay-Signature verified, idempotent on event id)
+      parameters:
+        - in: header
+          name: X-Razorpay-Signature
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Accepted }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /v1/account:
+    delete:
+      summary: Delete account and all user data
+      responses:
+        "204": { description: Deleted }
+
+  /v1/telemetry:
+    post:
+      summary: Client crash reports and text-free product events
+      description: >
+        Relayed to Error Reporting (crashes) and Cloud Logging → BigQuery (events).
+        Only enum, number and boolean fields are accepted; free-text fields are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  maxItems: 50
+                  items:
+                    oneOf:
+                      - $ref: "#/components/schemas/TelemetryEvent"
+                      - $ref: "#/components/schemas/CrashReport"
+      responses:
+        "202": { description: Accepted }
+        "400": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  responses:
+    Error:
+      description: Error envelope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    Mode: { type: string, enum: [dictation, prompt, email] }
+    Preset: { type: string, enum: [fastest, balanced, cheapest] }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              enum: [UNAUTHENTICATED, FORBIDDEN, VALIDATION_FAILED, NOT_FOUND, CONFLICT,
+                     QUOTA_EXCEEDED, RATE_LIMITED, CLIENT_OUTDATED, KILL_SWITCH,
+                     PROVIDER_UNAVAILABLE, INTERNAL]
+            message: { type: string }
+            requestId: { type: string }
+            resetAt: { type: string, format: date-time }
+    ClientConfig:
+      type: object
+      properties:
+        minClientVersion: { type: string }
+        latestClientVersion: { type: string }
+        killSwitch: { type: boolean }
+        killSwitchMessage: { type: string }
+        rolloutPercent: { type: integer, minimum: 0, maximum: 100 }
+        inRollout: { type: boolean }
+    SessionStartResponse:
+      type: object
+      required: [sessionId, scribeToken, keyterms, maxSessionSeconds, expiresAt]
+      properties:
+        sessionId: { type: string, format: uuid }
+        scribeToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+        keyterms: { type: array, items: { type: string } }
+        languageHint: { type: string, nullable: true }
+        maxSessionSeconds: { type: integer }
+    RewriteRequest:
+      type: object
+      required: [sessionId, transcript, mode, targetApp]
+      properties:
+        sessionId: { type: string, format: uuid }
+        transcript: { type: string, maxLength: 20000 }
+        mode: { $ref: "#/components/schemas/Mode" }
+        targetApp: { type: string, maxLength: 200 }
+        threadContext: { type: string, maxLength: 8000, description: "Email mode only; never stored" }
+    SessionEndRequest:
+      type: object
+      required: [audioSeconds, insertResult, timings]
+      properties:
+        audioSeconds: { type: number, minimum: 0 }
+        mode: { $ref: "#/components/schemas/Mode" }
+        targetApp: { type: string }
+        insertResult: { type: string, enum: [inserted, raw_fallback, discarded, failed] }
+        timings:
+          type: object
+          required: [sttCommitMs, releaseToInsertMs]
+          properties:
+            sttCommitMs: { type: integer }
+            ttftMs: { type: integer }
+            releaseToInsertMs: { type: integer }
+        scribeRetried: { type: boolean }
+        clientVersion: { type: string }
+    Settings:
+      type: object
+      properties:
+        preset: { $ref: "#/components/schemas/Preset" }
+        defaultMode: { $ref: "#/components/schemas/Mode" }
+        appModeOverrides:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/Mode" }
+        insertMode: { type: string, enum: [auto, review] }
+        languageHint: { type: string, nullable: true }
+        hotkey: { type: string }
+    DictionaryTerm:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        term: { type: string }
+        createdAt: { type: string, format: date-time }
+    TelemetryEvent:
+      type: object
+      required: [kind, name, at]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: event }
+        name: { type: string, enum: [dictation_started, dictation_inserted, mode_changed, fallback_used, quota_hit] }
+        at: { type: string, format: date-time }
+        mode: { $ref: "#/components/schemas/Mode" }
+        durationMs: { type: integer }
+        clientVersion: { type: string, maxLength: 32 }
+        os: { type: string, enum: [macos, windows] }
+    CrashReport:
+      type: object
+      required: [kind, at, clientVersion, os, errorCode]
+      additionalProperties: false
+      properties:
+        kind: { type: string, const: crash }
+        at: { type: string, format: date-time }
+        clientVersion: { type: string, maxLength: 32 }
+        os: { type: string, enum: [macos, windows] }
+        errorCode: { type: string, maxLength: 64, pattern: "^[A-Z0-9_]+$" }
+        module: { type: string, enum: [hotkey, audio, scribe, rewrite, insert, overlay, settings, updater, other] }
+        stack: { type: string, maxLength: 8000, description: "Symbolicated frames only; scrubbed of string literals client-side and server-side" }
+    Usage:
+      type: object
+      properties:
+        planId: { type: string }
+        todayMinutes: { type: number }
+        dailyCapMinutes: { type: integer }
+        periodMinutes: { type: number }
+        monthlyMinutes: { type: integer }
+        dailyResetAt: { type: string, format: date-time }
+        periodResetAt: { type: string, format: date-time }
