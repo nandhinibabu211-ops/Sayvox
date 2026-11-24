@@ -6,8 +6,8 @@ info:
     Stateless REST + SSE backend for Sayvox. Every /v1 route requires a Bearer JWT
     unless marked `security: []`. Transcript text is never persisted or logged.
 servers:
-  - url: https://api.sayvox.app
-    description: production (placeholder)
+  - url: https://sayvox-api-<hash>-<region>.a.run.app
+    description: production — temporary Cloud Run URL (exact URL known after first deploy; ADR-009)
   - url: http://localhost:8787
     description: local dev
 security:

@@ -8,6 +8,7 @@
 This document defines the full-stack architecture for Sayvox: a Tauri desktop client, a stateless TypeScript backend, and managed services (ElevenLabs Scribe v3 Live, OpenRouter, Razorpay), with all hosted infrastructure on Google Cloud (ADR-006). It is the single source of truth for AI-driven development agents.
 
 > **LLM provider:** OpenRouter ([ADR-008](adr/ADR-008-llm-gateway.md)). Vertex AI is not used.
+> **Google Cloud project:** `sayvox-app-2026`. **Domains:** temporary `run.app` / `web.app` addresses; load balancer + Cloud Armor deferred until a custom domain exists ([ADR-009](adr/ADR-009-temporary-domains.md)).
 > **Decisions in force:** [docs/adr/](adr/README.md).
 
 **Starter template:** none (greenfield). Tauri v2 `create-tauri-app` (Vite + TypeScript) for the client; Fastify scaffold for the API.
