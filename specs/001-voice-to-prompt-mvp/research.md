@@ -26,17 +26,17 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
 - **Alternatives**: Electron — all-JS team convenience at 100+ MB and higher memory.
 
 ## R5 — Global modifier-only hotkey
-- **Decision**: Custom Rust module: macOS `CGEventTap` on `flagsChanged`; Windows `WH_KEYBOARD_LL` hook.
+- **Decision**: Custom Rust module: Windows `WH_KEYBOARD_LL` hook (Windows only, ADR-010).
 - **Rationale**: Standard global-shortcut APIs require a non-modifier key and don't expose release events.
 - **Alternatives**: `rdev` crate — viable shortcut for prototyping; evaluate stability and permissions.
 
 ## R6 — Text insertion
-- **Decision**: Clipboard save → set text → synthetic Cmd/Ctrl+V → restore after ~150 ms.
+- **Decision**: Clipboard save → set text → synthetic Ctrl+V (`SendInput`) → restore after ~150 ms.
 - **Rationale**: Works across nearly all apps, fast for long text.
 - **Alternatives**: Synthetic per-character typing — slow, breaks with IMEs and autocomplete; Accessibility API value set — inconsistent across apps.
 
 ## R7 — Active-app detection
-- **Decision**: macOS `NSWorkspace.frontmostApplication` bundle id; Windows `GetForegroundWindow` → process exe name. For browsers, map window-title patterns (e.g. "Gmail") locally to an app id; title itself is not sent.
+- **Decision**: `GetForegroundWindow` → process exe name. For browsers, map window-title patterns (e.g. "Gmail") locally to an app id; title itself is not sent.
 - **Rationale**: Enough signal for mode selection without sending window contents.
 
 ## R8 — Backend framework & runtime
@@ -70,8 +70,8 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
 - **Decision (accepted, revisit after beta)**: 10 min/day, 120 min/month, Balanced + Cheapest presets, 25 dictionary terms.
 
 ## R15 — Code signing (ADR-007)
-- **Finding**: No free Windows code-signing option for a closed-source commercial app (SignPath Foundation is open-source only; Azure Trusted Signing and CA certificates are paid). macOS Developer ID needs the paid Apple Developer Program.
-- **Decision (owner)**: Skip both. macOS self-signed certificate (stable identity so permissions survive updates — verify), Windows unsigned; Tauri updater signatures + SHA-256 checksums kept.
+- **Finding**: No free Windows code-signing option for a closed-source commercial app (SignPath Foundation is open-source only; Azure Trusted Signing and CA certificates are paid). (macOS not in scope, ADR-010.)
+- **Decision (owner)**: Skip it. Windows installers unsigned; Tauri updater signatures + SHA-256 checksums kept.
 
 ## R16 — Observability on Google Cloud (ADR-006)
 - **Decision**: OTel → Cloud Monitoring/Trace; backend errors → Error Reporting; client crashes and text-free events → `POST /v1/telemetry` → Error Reporting / Cloud Logging → BigQuery sink.

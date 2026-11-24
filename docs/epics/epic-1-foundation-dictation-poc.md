@@ -16,10 +16,10 @@ As a developer, I want a monorepo with desktop, api and shared packages and CI, 
 5. README documents local setup.
 
 ## Story 1.2 — Tauri shell with tray and overlay window
-As a user, I want the app to live in the menu bar/tray with an overlay that appears on demand, so that it never gets in my way.
+As a user, I want the app to live in the system tray with an overlay that appears on demand, so that it never gets in my way.
 
 **Acceptance Criteria**
-1. Tauri v2 app launches into tray/menu bar with Settings and Quit items.
+1. Tauri v2 app launches into the system tray with Settings and Quit items.
 2. A transparent, always-on-top, non-focusable overlay window exists, hidden by default.
 3. Showing the overlay does not steal focus from the frontmost app (verified in Notepad, Word and a browser).
 4. Overlay follows OS light/dark.
@@ -66,8 +66,8 @@ As a user, I want to see words appear while I speak and get the final text on re
 As a user, I want the text typed where my cursor is without losing what I had copied.
 
 **Acceptance Criteria**
-1. `insert` saves clipboard contents (text and, where possible, other formats), writes result, sends Cmd+V (macOS) / Ctrl+V (Windows), restores clipboard in a `finally` path.
-2. macOS Accessibility permission is checked; if missing, onboarding guide is shown.
+1. `insert` saves clipboard contents (text and, where possible, other formats), writes result, sends Ctrl+V via `SendInput`, restores clipboard in a `finally` path.
+2. If paste is blocked (e.g. an elevated/admin target window), the text stays in the overlay with a Copy button.
 3. Works in Notepad, Word, Chrome/Edge text fields, Slack desktop and VS Code/Cursor.
 4. Clipboard is restored even if paste fails.
 

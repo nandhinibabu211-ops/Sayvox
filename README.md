@@ -1,6 +1,6 @@
 # Sayvox — Voice-to-Prompt Dictation
 
-Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt / email is typed at your cursor on macOS and Windows.
+Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt / email is typed at your cursor on Windows.
 
 ## Planning artifacts
 
@@ -12,7 +12,7 @@ Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt /
 | [docs/front-end-spec.md](docs/front-end-spec.md) | UX — IA, flows, overlay state machine, screens |
 | [docs/architecture.md](docs/architecture.md) | Architect — stack, components, APIs, deployment, standards, ADRs |
 | [docs/epics/](docs/epics/) | Epics 1–6 with stories and acceptance criteria |
-| [docs/stories/](docs/stories/) | 46 dev-ready stories (1.1–6.8), status Draft — tasks, dev notes, testing |
+| [docs/stories/](docs/stories/) | 45 dev-ready stories (1.1–6.8; 5.1 removed, Windows only), status Draft — tasks, dev notes, testing |
 | [docs/adr/](docs/adr/README.md) | Decision records (ADR-001–008); only ADR-002 waits on the timing test |
 | [docs/checklists/pm-checklist-results.md](docs/checklists/pm-checklist-results.md) | PM checklist outcome |
 | [.bmad-core/core-config.yaml](.bmad-core/core-config.yaml) | BMAD paths config |

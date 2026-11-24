@@ -353,7 +353,7 @@ components:
         mode: { $ref: "#/components/schemas/Mode" }
         durationMs: { type: integer }
         clientVersion: { type: string, maxLength: 32 }
-        os: { type: string, enum: [macos, windows] }
+        os: { type: string, enum: [windows10, windows11] }
     CrashReport:
       type: object
       required: [kind, at, clientVersion, os, errorCode]
@@ -362,7 +362,7 @@ components:
         kind: { type: string, const: crash }
         at: { type: string, format: date-time }
         clientVersion: { type: string, maxLength: 32 }
-        os: { type: string, enum: [macos, windows] }
+        os: { type: string, enum: [windows10, windows11] }
         errorCode: { type: string, maxLength: 64, pattern: "^[A-Z0-9_]+$" }
         module: { type: string, enum: [hotkey, audio, scribe, rewrite, insert, overlay, settings, updater, other] }
         stack: { type: string, maxLength: 8000, description: "Symbolicated frames only; scrubbed of string literals client-side and server-side" }

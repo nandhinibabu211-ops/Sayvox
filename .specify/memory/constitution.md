@@ -29,7 +29,7 @@ One deployable backend (modular monolith), one LLM gateway (OpenRouter), managed
 ## Security & Compliance Constraints
 - TLS everywhere; Cloud Armor WAF in front of the API; Postgres encrypted at rest; least-privilege DB roles and service accounts; secrets in Secret Manager, rotated every 90 days.
 - Per-user rate limits, daily/monthly audio caps (Redis) and provider spend caps as a hard backstop.
-- Update packages MUST be signed with the Tauri updater key, and every installer MUST have a published SHA-256 checksum. Installers are not code-signed by Apple or a Windows certificate authority (ADR-007); adding paid signing later needs no amendment.
+- Update packages MUST be signed with the Tauri updater key, and every installer MUST have a published SHA-256 checksum. Windows installers are not code-signed by a certificate authority (ADR-007); adding paid signing later needs no amendment.
 - OpenRouter routing restricted to providers that neither train on nor retain prompts.
 - Plan for India DPDP Act and GDPR (consent, purpose limitation, DPAs, breach notification); legal review before public launch.
 
@@ -45,4 +45,4 @@ This constitution supersedes other practices. Amendments require a PR updating t
 **Version**: 1.1.0 | **Ratified**: 2026-11-24 | **Last Amended**: 2026-11-24
 
 ### Amendment log
-- **1.1.0 (2026-11-24):** Installer code signing replaced by signed update manifests + checksums (owner skipped the Apple Developer Program and paid Windows certificates; ADR-007). WAF and secrets now on Google Cloud (ADR-006).
+- **1.1.0 (2026-11-24):** Installer code signing replaced by signed update manifests + checksums (owner skipped paid Windows certificates; ADR-007). WAF and secrets now on Google Cloud (ADR-006).

@@ -1,15 +1,18 @@
-# ADR-010: Windows first
+# ADR-010: Windows only
 
-**Status:** Accepted · 2026-11-24 · Decided by: project owner
+**Status:** Accepted · 2026-11-24 · Decided by: project owner ("Windows ku mattum start pannu, macOS ku vennam")
+**Supersedes:** the earlier version of this ADR ("Windows first; macOS in Phase 3").
 
 ## Context
-The architecture planned Phase 1 on macOS. The development machine is Windows, and no Mac is available for testing hotkeys, overlay focus, permissions or paste.
+The architecture planned macOS and Windows. The development machine is Windows, and no Mac is available.
 
 ## Decision
-Phase 1 (proof of concept) and Phase 2 (MVP) are built and tested on **Windows 10/11**. macOS support moves to Phase 3 (Story 5.1, now "macOS client parity").
+Sayvox targets **Windows 10/11 only**. macOS is out of scope for every phase (PoC, MVP, beta, launch). It is not deferred to a later phase; adding it later needs a new ADR.
 
 ## Consequences
-- Epic 1 and Epic 3 native modules are written for Windows first: `WH_KEYBOARD_LL` hotkey hook, `WS_EX_NOACTIVATE` overlay, `SendInput` Ctrl+V paste, foreground-process app detection.
-- Native code stays behind per-OS traits so macOS can be added without touching the shared logic.
-- A Mac (real hardware) is needed before Phase 3 to build and test the macOS client.
+- All native modules are Windows only: `WH_KEYBOARD_LL` hotkey hook, `WS_EX_NOACTIVATE` overlay, `SendInput` Ctrl+V paste, foreground-process app detection, Credential Manager for tokens.
+- Story 5.1 (macOS client parity) is removed. No Mac hardware is needed.
+- ADR-007's macOS self-signing, Gatekeeper and permission-persistence work no longer applies; only the unsigned Windows installer and SmartScreen guidance remain.
+- Native code can still sit behind small traits for testability, but no macOS implementation is planned.
 - Windows test apps for manual checks: Notepad, Word, Chrome/Edge (Gmail), Slack, Teams, VS Code, Cursor, Windows Terminal.
+- Spec Kit and BMAD docs drop macOS from target platforms, CI matrices, telemetry enums and install guides.

@@ -12,7 +12,7 @@ A Tauri desktop client captures speech on a Ctrl+Shift hold, streams 16 kHz PCM 
 **Storage**: Cloud SQL for PostgreSQL 16, Memorystore for Redis 7 (Google Cloud, ADR-006)
 **LLM provider**: OpenRouter (ADR-008); not Vertex AI
 **Testing**: Vitest, cargo test, testcontainers, mock Scribe WS + mock OpenRouter SSE servers, WebdriverIO + tauri-driver, k6, `eval/` quality + timing harness
-**Target Platform**: macOS 13+ (universal), Windows 10/11; API on Cloud Run `us-east4`; installers not code-signed (ADR-007)
+**Target Platform**: Windows 10/11 only (ADR-010); API on Cloud Run `us-east4`; installers not code-signed (ADR-007)
 **Project Type**: Desktop app + web service (monorepo)
 **Performance Goals**: release→insert < 1 s dictation, ≤ 3 s p95 prompt/email; `/session/start` < 150 ms; TTFT 0.5–1 s
 **Constraints**: no transcript storage; provider keys server-only; ElevenLabs concurrency is first limit; installer a few MB
@@ -61,7 +61,7 @@ apps/
 │   │   ├── services/              # scribeClient, rewriteClient, tokenCache, modeResolver, apiClient
 │   │   └── telemetry/
 │   └── src-tauri/src/
-│       ├── hotkey/                # macOS CGEventTap, Windows LL hook, state machine
+│       ├── hotkey/                # Windows LL hook, state machine
 │       ├── audio/                 # cpal capture, resampler, ring buffer
 │       ├── active_app/
 │       └── insert/                # clipboard save/paste/restore
@@ -86,7 +86,7 @@ infra/  .github/workflows/
 | --- | --- | --- |
 | 1 PoC | Setup, hotkey, mic, overlay, Scribe via dev token, paste | dictation < 1 s on 20 phrases |
 | 2 MVP | Backend, auth, sessions, rewrite/presets/templates, app detection, eval + timing | prompt p95 < 3 s; quality ≥ Lemon |
-| 3 Beta | macOS parity (Windows built first, ADR-010), signing, auto-update, quotas, observability, privacy, deletion | 50+ users × 2 weeks, > 99.5 % crash-free |
+| 3 Beta | Release builds (unsigned),  auto-update, quotas, observability, privacy, deletion | 50+ users × 2 weeks, > 99.5 % crash-free |
 | 4 Launch | Billing, plan limits, spend controls, kill-switch drill, load test | 3× peak load test passes |
 
 ## Complexity Tracking

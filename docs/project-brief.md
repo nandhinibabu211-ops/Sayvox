@@ -5,7 +5,7 @@
 
 ## 1. Executive Summary
 
-Sayvox is a hold-to-talk desktop app for macOS and Windows. The user holds **Ctrl+Shift**, speaks, releases, and gets either clean dictation or a structured AI prompt / email / Slack message typed at the cursor in whatever app is focused.
+Sayvox is a hold-to-talk desktop app for Windows. The user holds **Ctrl+Shift**, speaks, releases, and gets either clean dictation or a structured AI prompt / email / Slack message typed at the cursor in whatever app is focused.
 
 - **Problem:** Typing long prompts, emails and messages is slow; existing dictation is either raw (fillers, no punctuation) or slow, and does not shape text for the target tool (an AI coding assistant, Gmail, Slack).
 - **Target market:** Knowledge workers, developers and founders who write to AI tools and colleagues all day, with a strong focus on Indian English and Hinglish speakers that mainstream dictation handles poorly.
@@ -87,12 +87,12 @@ Indian English and Hinglish speakers; users who rely on product/brand names (e.g
 Phase 2 gate: prompt-mode p95 < 3 s; output quality judged ≥ Lemon on the same phrases.
 
 ## 7. Post-MVP Vision
-- **Phase 3 (private beta):** macOS + Windows builds (not code-signed, ADR-007), auto-update, quotas, dashboards, privacy page, account deletion.
+- **Phase 3 (private beta):** Windows builds (not code-signed, ADR-007), auto-update, quotas, dashboards, privacy page, account deletion.
 - **Phase 4 (launch):** billing (Razorpay), plan limits, staged rollouts, kill switch, load test at 3× peak.
 - **Long term:** additional regions (EU/Asia), more modes (e.g. code comments, tickets), team plans, optional encrypted history, self-hosted LLM gateway.
 
 ## 8. Technical Considerations
-- **Platforms:** macOS (universal binary, self-signed, not notarized) and Windows (unsigned) — ADR-007.
+- **Platforms:** Windows 10/11 only (unsigned installers) — ADR-007, ADR-010.
 - **Client:** Tauri (Rust core + web UI); Electron fallback.
 - **Backend:** TypeScript + Fastify, stateless containers on Google Cloud Run (`us-east4`).
 - **Data:** Cloud SQL for PostgreSQL, Memorystore for Redis.
@@ -108,8 +108,8 @@ Phase 2 gate: prompt-mode p95 < 3 s; output quality judged ≥ Lemon on the same
 
 ### Key risks
 - ElevenLabs concurrency caps at peak hours.
-- macOS Accessibility permission friction blocking paste.
-- Unsigned installers: Windows SmartScreen and macOS Gatekeeper warnings raise install drop-off (ADR-007).
+- Paste blocked into elevated (admin) windows on Windows.
+- Unsigned installers: Windows SmartScreen warnings raise install drop-off (ADR-007).
 - Prompt injection via dictated text.
 - Client-side audio metering can drift from provider billing.
 

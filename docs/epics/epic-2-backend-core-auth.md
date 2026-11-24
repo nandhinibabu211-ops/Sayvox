@@ -18,7 +18,7 @@ As a user, I want to sign in once and stay signed in, so that the app just works
 
 **Acceptance Criteria**
 1. Client signs in via Google Identity Platform (email or Google account) in the system browser, returns via `sayvox://auth` deep link.
-2. Tokens stored in OS keychain (macOS Keychain / Windows Credential Manager).
+2. Tokens stored in Windows Credential Manager.
 3. API verifies JWT via JWKS on every `/v1/*` route except `/healthz`, `/v1/client-config`, `/v1/billing/webhook`.
 4. First authenticated request lazily creates `users` + default `settings` rows.
 5. Expired/invalid tokens → `401 UNAUTHENTICATED`; client refreshes silently.

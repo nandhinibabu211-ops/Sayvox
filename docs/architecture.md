@@ -166,10 +166,10 @@ Full OpenAPI: `specs/001-voice-to-prompt-mvp/contracts/openapi.yaml`.
 ### Desktop client (`apps/desktop`)
 | Module | Layer | Responsibility |
 | --- | --- | --- |
-| `hotkey` | Rust | Global hold detection (macOS CGEventTap / Windows `SetWindowsHookEx` low-level hook); emits `press`/`release` |
+| `hotkey` | Rust | Global hold detection (Windows `SetWindowsHookEx` `WH_KEYBOARD_LL` hook); emits `press`/`release` |
 | `audio` | Rust | `cpal` capture, resample to 16 kHz mono i16, 100–250 ms chunks, ring buffer for retry |
-| `active_app` | Rust | Frontmost app bundle id / exe name + window title |
-| `insert` | Rust | Save clipboard → write text → synthesize Cmd/Ctrl+V → restore clipboard |
+| `active_app` | Rust | Foreground process exe name + window title |
+| `insert` | Rust | Save clipboard → write text → synthesize Ctrl+V (`SendInput`) → restore clipboard |
 | `token_cache` | TS | Holds one pre-fetched session/token; refreshes after use or expiry |
 | `scribe_client` | TS | WS lifecycle, chunk send, partial/committed handling, one retry |
 | `rewrite_client` | TS | SSE consumer; first-token & total timers |
@@ -290,7 +290,7 @@ sayvox/
 - **CI (PR):** lint, typecheck, unit, contract tests (mocked Scribe/OpenRouter), eval quality set.
 - **CD (main):** build container → staging → smoke (one real end-to-end dictation) → manual approval → rolling prod deploy; auto-rollback on error-rate or p95 alerts.
 - **Deploy auth:** GitHub Actions → Google Cloud via Workload Identity Federation (no stored service-account keys).
-- **Desktop (tag):** build macOS universal + Windows; macOS signed with a self-signed certificate (no notarization), Windows unsigned (ADR-007); update packages signed with the Tauri updater key; SHA-256 checksums; publish to Cloud Storage; staged 10 → 50 → 100 %.
+- **Desktop (tag):** build Windows `.msi` + NSIS `.exe`, unsigned (ADR-007, ADR-010); update packages signed with the Tauri updater key; SHA-256 checksums; publish to Cloud Storage; staged 10 → 50 → 100 %.
 - **Secrets:** Secret Manager; rotate every 90 days.
 
 ## 12. Error Handling Strategy

@@ -25,7 +25,7 @@
 
 ```mermaid
 graph TD
-  Tray[Tray / menu-bar icon] --> Overlay[Overlay notch]
+  Tray[System tray icon] --> Overlay[Overlay notch]
   Tray --> Settings
   Tray --> Usage[Usage & Plan]
   Tray --> Quit
@@ -45,12 +45,12 @@ graph TD
 ## 3. User Flows
 
 ### 3.1 Onboarding
-0. Install guide (website): how to pass the macOS "Open Anyway" and Windows SmartScreen "Run anyway" prompts, since installers aren't code-signed (ADR-007).
+0. Install guide (website): how to pass the Windows SmartScreen "Run anyway" prompt, since installers aren't code-signed (ADR-007).
 1. Welcome → Sign in (Identity Platform sign-in page in system browser — email or Google — deep link back `sayvox://auth`).
-2. Microphone permission prompt (both OS).
-3. macOS: Accessibility permission with a screenshot guide and "Open System Settings" button; app polls until granted.
+2. Microphone check: if Windows "Let apps access your microphone" is off, show a guide and an "Open Settings" button (`ms-settings:privacy-microphone`); poll until allowed.
+3. (No extra permission step on Windows.)
 4. Guided try: "Hold Ctrl+Shift and say: *Schedule the demo for Friday*" inside a practice text box.
-5. Done → app lives in tray/menu bar.
+5. Done → app lives in the system tray.
 
 **Edge cases:** permission denied → persistent banner in tray menu and overlay error state with "Fix" link; sign-in timeout → retry.
 
@@ -86,7 +86,7 @@ Blocking small window: "Update required" with Update button; kill switch shows "
 ## 4. Key Screens
 
 ### Overlay / notch
-- Position: top-center (macOS, below notch/menu bar), top-center always-on-top on Windows; does not take focus.
+- Position: top-center, always-on-top; does not take focus.
 - Size: 420 × 64 px collapsed, grows to max 420 × 240 px for preview text.
 - Elements: mode badge (Dictation / Prompt / Email), live waveform, partial text (1–2 lines, fading), streamed result, status icon, hint ("Enter to insert · Esc to discard" in review mode).
 

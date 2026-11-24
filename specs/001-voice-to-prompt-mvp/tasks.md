@@ -28,7 +28,7 @@ Tests are written first and must fail before implementation (Constitution V).
 - [ ] T014 JWT auth plugin (JWKS verify, lazy user + settings create) + tests — `apps/api/src/modules/auth/`
 - [ ] T015 [P] Config module: presets, model slugs, kill switch, min version (env + Redis) — `apps/api/src/modules/config/`
 - [ ] T016 [P] OTel metrics/traces bootstrap — `apps/api/src/lib/otel/`
-- [ ] T017 [P] Client API wrapper with JWT injection + keychain storage — `apps/desktop/src/services/apiClient.ts`, `src-tauri/src/keychain/`
+- [ ] T017 [P] Client API wrapper with JWT injection + Windows Credential Manager storage — `apps/desktop/src/services/apiClient.ts`, `src-tauri/src/credentials/`
 - [ ] T018 Client sign-in flow via system browser + `sayvox://auth` deep link — `apps/desktop/src/onboarding/`
 - [ ] T019 **Research R1/R2 verification** — record confirmed ElevenLabs details and OpenRouter details (ADR-008) in `research.md` and contract files
 
@@ -125,13 +125,13 @@ Tests are written first and must fail before implementation (Constitution V).
 - [ ] T077 [US6] OpenRouter no-train/no-retain routing on every request; document ElevenLabs retention — `apps/api/src/lib/openrouter/`, `research.md`
 - [ ] T078 [US6] Privacy audit script (search Cloud Logging, Error Reporting, BigQuery, DB for test phrases) — `eval/privacy-audit/`
 
-## Phase 8: User Story 7 — Safe updates & macOS parity (P3)
-- [ ] T079 [P] [US7] macOS hotkey `CGEventTap` + permission onboarding — `src-tauri/src/hotkey/macos.rs` (ADR-010)
-- [ ] T080 [P] [US7] macOS active app + `NSPanel` overlay + Cmd+V paste — `src-tauri/src/{active_app,insert}/macos.rs`
+## Phase 8: User Story 7 — Safe updates (P3)
+- [ ] ~~T079~~ Removed — macOS out of scope (ADR-010)
+- [ ] ~~T080~~ Removed — macOS out of scope (ADR-010)
 - [ ] T081 [US7] `GET /v1/client-config` + client poll, forced-update + kill-switch UI — `apps/api/src/modules/config/`, `apps/desktop/src/updates/`
 - [ ] T082 [US7] Tauri updater with signed manifests + staged rollout bucket — `apps/desktop/src-tauri/`, `apps/desktop/src/updates/`
-- [ ] T083 [US7] Release workflow: macOS universal self-signed (no notarization), Windows unsigned, SHA-256 checksums (ADR-007); verify macOS permissions survive an update — `.github/workflows/release.yml`
-- [ ] T084 [US7] Installer + update manifest hosting on Cloud Storage + Cloud CDN; install guide for Gatekeeper/SmartScreen prompts — `infra/`, `apps/web/`
+- [ ] T083 [US7] Release workflow: unsigned Windows `.msi` + `.exe`, SHA-256 checksums (ADR-007) — `.github/workflows/release.yml`
+- [ ] T084 [US7] Installer + update manifest hosting on Cloud Storage + Cloud CDN; install guide for the SmartScreen prompt — `infra/`, `apps/web/`
 
 ## Phase 9: User Story 5 — Usage, limits & upgrade (P3)
 - [ ] T085 [P] [US5] `GET /v1/usage` + Usage & Plan screen — `apps/api/src/modules/usage/`, `apps/desktop/src/settings/Usage.tsx`
@@ -152,7 +152,7 @@ Tests are written first and must fail before implementation (Constitution V).
 - [ ] T098 k6 load test at 3× expected peak — `eval/load/`
 - [ ] T099 Kill switch + rollback drill — `docs/runbooks/kill-switch.md`
 - [ ] T100 Landing page + downloads + pricing — `apps/web/`
-- [ ] T101 Run `quickstart.md` end-to-end on both OSes
+- [ ] T101 Run `quickstart.md` end-to-end on Windows 10 and Windows 11
 
 ---
 

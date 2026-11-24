@@ -68,7 +68,7 @@ Count per user ≤ `plans.dictionary_limit`.
 | user_id | uuid | FK ON DELETE CASCADE |
 | started_at / ended_at | timestamptz | |
 | mode | mode | nullable until rewrite/end |
-| target_app | text | app id only (bundle id / exe) |
+| target_app | text | app id only (exe name) |
 | audio_seconds | numeric(8,2) | clamped ≤ max_session_seconds |
 | model_used | text | nullable (dictation fast path) |
 | fallback_used | bool | default false |

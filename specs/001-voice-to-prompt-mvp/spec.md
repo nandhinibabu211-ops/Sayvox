@@ -3,7 +3,7 @@
 **Feature Branch**: `001-voice-to-prompt-mvp`
 **Created**: 2026-11-24
 **Status**: Draft
-**Input**: "Hold-to-talk desktop tool for macOS and Windows: the user holds Ctrl+Shift, speaks, and gets clean dictation or a structured AI prompt typed at the cursor in any app."
+**Input**: "Hold-to-talk desktop tool for Windows: the user holds Ctrl+Shift, speaks, and gets clean dictation or a structured AI prompt typed at the cursor in any app."
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -87,7 +87,7 @@ Clients update automatically with staged rollout; old incompatible builds are fo
 
 ### Edge Cases
 - Scribe WebSocket drops mid-utterance → retry once on a new token replaying buffered audio.
-- Microphone or Accessibility permission denied → explicit error state with fix link.
+- Microphone access denied in Windows privacy settings → explicit error state with fix link.
 - Hotkey held beyond `maxSessionSeconds` → recording stops and commits automatically.
 - Focused field is not editable or paste fails → clipboard still restored; result kept in overlay for manual copy.
 - Network offline → overlay error; nothing pasted unless a committed transcript exists.
@@ -98,7 +98,7 @@ Clients update automatically with staged rollout; old incompatible builds are fo
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
-- **FR-001**: System MUST start recording on Ctrl+Shift hold and end on release, from any foreground app, on macOS and Windows.
+- **FR-001**: System MUST start recording on Ctrl+Shift hold and end on release, from any foreground app, on Windows 10/11.
 - **FR-002**: System MUST stream microphone audio (16 kHz mono PCM16) to realtime STT using a backend-issued single-use token; provider keys MUST NOT reside on the client.
 - **FR-003**: System MUST display live partial transcripts and streamed rewrite output in a non-focus-stealing overlay.
 - **FR-004**: System MUST finalize the transcript on key release via manual commit (no silence detection).
@@ -143,7 +143,7 @@ Clients update automatically with staged rollout; old incompatible builds are fo
 
 ## Assumptions
 - ElevenLabs Scribe v3 Live and OpenRouter APIs behave as described in the architecture document; exact names verified in research.
-- macOS 13+ and Windows 10/11 are the supported OS versions.
+- Windows 10/11 is the only supported OS (macOS out of scope, ADR-010).
 - Ctrl+Shift is the default hotkey and is rebindable.
 - Free tier exists with a daily cap (size decided before beta).
 - No transcript history in this feature.
