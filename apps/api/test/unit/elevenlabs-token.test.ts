@@ -42,8 +42,11 @@ describe("ElevenLabs single-use token", () => {
     await expect(mint({ maxSessionSeconds: 300 })).rejects.toMatchObject({ status: "timeout" });
   });
 
-  it("refuses to run without a key", async () => {
+  it("refuses to run without a key, as a provider error (503, not 500)", async () => {
     const mint = createScribeTokenMinter({ apiKey: undefined });
-    await expect(mint({ maxSessionSeconds: 300 })).rejects.toThrow(/ELEVENLABS_API_KEY/);
+    await expect(mint({ maxSessionSeconds: 300 })).rejects.toMatchObject({
+      name: "ProviderError",
+      status: "not_configured",
+    });
   });
 });

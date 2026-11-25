@@ -88,6 +88,12 @@ variable "redis_tier" {
   default     = "BASIC"
 }
 
+variable "provider_keys_ready" {
+  description = "Mount the ElevenLabs/OpenRouter secrets. Add their versions first; false runs the API without them (dictation answers 503)."
+  type        = bool
+  default     = true
+}
+
 variable "billing_enabled" {
   description = "Mount the Razorpay secrets. Add their versions in Secret Manager first."
   type        = bool

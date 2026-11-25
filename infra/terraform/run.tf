@@ -23,6 +23,12 @@ locals {
     reconcile = ["DATABASE_URL", "ELEVENLABS_API_KEY"]
     spend     = ["DATABASE_URL"]
   }
+  # Owner-provided secrets are mounted only once they have a version (Cloud Run refuses a
+  # revision whose secret has none): provider_keys_ready = false runs the API without them.
+  mounted_secrets = {
+    for k, v in local.all_secrets : k => v
+    if var.provider_keys_ready || !contains(keys(local.owner_secrets), k)
+  }
   job_args = {
     cfg       = ["src/scripts/cfg.ts", "get"]
     migrate   = ["src/scripts/db.ts", "setup"]
@@ -80,7 +86,7 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
       dynamic "env" {
-        for_each = local.all_secrets
+        for_each = local.mounted_secrets
         content {
           name = env.key
           value_source {
@@ -208,7 +214,7 @@ resource "google_cloud_run_v2_job" "job" {
           value = tostring(var.db_connect_timeout_ms)
         }
         dynamic "env" {
-          for_each = toset(local.job_secrets[each.key])
+          for_each = toset([for s in local.job_secrets[each.key] : s if contains(keys(local.mounted_secrets), s)])
           content {
             name = env.value
             value_source {
