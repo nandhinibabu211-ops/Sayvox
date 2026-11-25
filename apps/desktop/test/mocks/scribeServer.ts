@@ -25,6 +25,8 @@ export type Behaviour =
 
 export interface Connection {
   url: URL;
+  /** Offered WebSocket subprotocols (the stream ticket travels here). */
+  protocols: string[];
   chunks: ReceivedChunk[];
   protocolErrors: string[];
 }
@@ -39,13 +41,18 @@ export interface MockScribe {
 }
 
 export async function startMockScribe(): Promise<MockScribe> {
-  const wss = new WebSocketServer({ port: 0, host: "127.0.0.1" });
+  // Stands in for the API's /v1/stream proxy, which speaks the Scribe protocol.
+  const wss = new WebSocketServer({
+    port: 0,
+    host: "127.0.0.1",
+    handleProtocols: (offered) => (offered.has("sayvox.stream.v1") ? "sayvox.stream.v1" : false),
+  });
   await new Promise<void>((r) => wss.once("listening", () => r()));
   const address = wss.address();
   const port = typeof address === "object" && address ? address.port : 0;
 
   const mock: MockScribe = {
-    url: `ws://127.0.0.1:${port}/v1/speech-to-text/realtime`,
+    url: `ws://127.0.0.1:${port}/v1/stream`,
     connections: [],
     script: [],
     transcript: "um so let's meet on Thursday no wait Friday",
@@ -59,6 +66,10 @@ export async function startMockScribe(): Promise<MockScribe> {
   wss.on("connection", (ws: WebSocket, req) => {
     const conn: Connection = {
       url: new URL(req.url ?? "/", "ws://127.0.0.1"),
+      protocols: String(req.headers["sec-websocket-protocol"] ?? "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean),
       chunks: [],
       protocolErrors: [],
     };

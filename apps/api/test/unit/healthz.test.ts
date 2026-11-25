@@ -15,6 +15,12 @@ describe("GET /healthz", () => {
     expect(res.json()).toEqual({ status: "ok" });
   });
 
+  it("is also served at /health (Cloud Run's frontend reserves /healthz)", async () => {
+    const res = await app.inject({ method: "GET", url: "/health" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: "ok" });
+  });
+
   it("sets an x-request-id header", async () => {
     const res = await app.inject({ method: "GET", url: "/healthz" });
     expect(res.headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);

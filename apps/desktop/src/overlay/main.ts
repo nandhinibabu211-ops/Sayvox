@@ -1,18 +1,20 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { emitTo } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
 import { DEFAULT_PREFS } from "../services/modeResolver";
 import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
-import { CLIENT_VERSION, createApiClient } from "../services/runtime";
+import { API_BASE_URL, CLIENT_VERSION, createApiClient } from "../services/runtime";
 import { streamRewrite } from "../services/rewriteClient";
-import { ScribeSession } from "../services/scribeClient";
+import { ScribeSession, streamUrl } from "../services/scribeClient";
 import { credentialSessionStore } from "../services/session";
 import { parseCached, SETTINGS_CACHE_KEY, SettingsStore } from "../services/settingsStore";
 import { TokenCache } from "../services/tokenCache";
 import { REVIEW_HINT } from "./review";
 import { errorFor, type OverlayState } from "./state";
 import { startTelemetry } from "../telemetry";
+import { ProductAnalytics } from "../telemetry/analytics";
 import { ClientConfigWatcher, trayText } from "../updates/clientConfig";
 import { fetchClientConfig, startUpdates } from "../updates/runtime";
 import { hotkeyLabel } from "../settings/model";
@@ -23,7 +25,9 @@ import { hotkeyLabel } from "../settings/model";
  */
 
 const api = createApiClient();
-startTelemetry(api, "overlay");
+const STREAM_URL = streamUrl(API_BASE_URL);
+const telemetry = startTelemetry(api, "overlay");
+const analytics = new ProductAnalytics((name, fields) => telemetry.event(name, fields));
 const tokens = new TokenCache(() =>
   api.json<SessionStartResponse>("/v1/session/start", { method: "POST", body: "{}" }),
 );
@@ -128,6 +132,14 @@ function render(s: OverlayState): void {
         action.textContent = "Update";
         action.hidden = false;
         onAction = () => void showMainWindow();
+      } else if (s.action === "upgrade") {
+        // T086: daily/monthly limit reached → Settings → Usage & Plan.
+        action.textContent = "Upgrade";
+        action.hidden = false;
+        onAction = () => {
+          void showMainWindow().then(() => emitTo("main", "settings://open", { page: "usage" }));
+          render({ kind: "hidden" });
+        };
       } else if (s.action === "signIn") {
         action.textContent = "Sign in";
         action.hidden = false;
@@ -198,13 +210,14 @@ window.addEventListener("storage", (e) => {
 
 const pipeline = new DictationPipeline({
   takeSession: () => tokens.take(),
-  newScribe: (opts) => new ScribeSession(opts),
+  newScribe: (opts) => new ScribeSession({ ...opts, url: STREAM_URL }),
   insert: (t) => invoke<InsertOutcome>("insert_text", { text: t }),
   now: () => invoke<number>("dictation_now"),
   endSession: (id, body) =>
     api.json(`/v1/session/${id}/end`, { method: "POST", body: JSON.stringify(body) }),
   onState: (s) => {
     if (s.kind !== "hidden") lastActivity = Date.now();
+    analytics.observe(s);
     render(s);
   },
   blocked: () => {

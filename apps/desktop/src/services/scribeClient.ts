@@ -2,16 +2,28 @@
  * ElevenLabs Scribe v3 Live client (Story 1.6 + Story 3.7 retry), per
  * specs/001-voice-to-prompt-mvp/contracts/scribe-realtime.md.
  *
+ * The socket goes to the Sayvox API's metering proxy (`/v1/stream`, audit SEC-03), never to
+ * ElevenLabs directly: the API holds the Scribe token, fixes the model, audio format,
+ * keyterms and language, and passes the Scribe protocol through unchanged. The client
+ * authenticates with the one-time ticket from /v1/session/start, sent as a WebSocket
+ * subprotocol (never in the URL).
+ *
  * - Opens the socket on press; chunks queue until `session_started`, then flush in order.
  * - Every chunk carries message_type, audio_base_64, commit and sample_rate (all required).
  * - Release = `commit()`; resolves with the committed transcript.
- * - One retry on a retryable drop: new token, reconnect, replay every buffered chunk.
+ * - One retry on a retryable drop: new session ticket, reconnect, replay every buffered chunk.
  * Partial and final text are never logged (Constitution I).
  */
 
-export const SCRIBE_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime";
-export const SCRIBE_MODEL = "scribe_v3_live";
+export const STREAM_PROTOCOL = "sayvox.stream.v1";
 const SAMPLE_RATE = 16_000;
+
+/** `http(s)://api` → `ws(s)://api/v1/stream`. */
+export function streamUrl(apiBaseUrl: string): string {
+  const u = new URL("/v1/stream", apiBaseUrl);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  return u.toString();
+}
 
 const FATAL = new Set(["auth_error", "quota_exceeded", "unaccepted_terms"]);
 const RETRYABLE = new Set([
@@ -35,41 +47,26 @@ export class ScribeError extends Error {
 }
 
 export interface ScribeOptions {
-  token: string;
-  keyterms?: readonly string[];
-  /** e.g. "en-IN"; Scribe takes the ISO 639 part. Null/"auto" = auto-detect. */
-  languageHint?: string | null;
-  /** Fresh single-use token for the one retry (a new /v1/session/start). */
-  refreshToken?: () => Promise<string>;
+  /** One-time stream ticket from /v1/session/start. */
+  ticket: string;
+  /** Fresh ticket for the one retry (a new /v1/session/start). */
+  refreshTicket?: () => Promise<string>;
   onPartial?: (text: string) => void;
-  url?: string;
+  /** The API's stream endpoint (`streamUrl(API_BASE_URL)`). */
+  url: string;
   WebSocketImpl?: typeof WebSocket;
   commitTimeoutMs?: number;
   now?: () => number;
 }
+
+/** What the pipeline supplies; the window wiring adds the URL. */
+export type ScribeStreamOptions = Omit<ScribeOptions, "url" | "WebSocketImpl">;
 
 export interface CommitResult {
   text: string;
   /** commit sent → committed_transcript received. */
   commitMs: number;
   retried: boolean;
-}
-
-export function scribeUrl(
-  base: string,
-  token: string,
-  keyterms: readonly string[],
-  lang?: string | null,
-): string {
-  const u = new URL(base);
-  u.searchParams.set("model_id", SCRIBE_MODEL);
-  u.searchParams.set("token", token);
-  u.searchParams.set("audio_format", "pcm_16000");
-  u.searchParams.set("commit_strategy", "manual");
-  const iso = lang && lang !== "auto" ? lang.split("-")[0]!.toLowerCase() : "";
-  if (/^[a-z]{2,3}$/.test(iso)) u.searchParams.set("language_code", iso);
-  for (const k of keyterms) u.searchParams.append("keyterms", k);
-  return u.toString();
 }
 
 export function toBase64(buf: ArrayBuffer): string {
@@ -116,20 +113,13 @@ export class ScribeSession {
   }
 
   start(): void {
-    this.connect(this.opts.token);
+    this.connect(this.opts.ticket);
   }
 
-  private connect(token: string): void {
+  private connect(ticket: string): void {
     this.ready = false;
     this.sent = 0;
-    const ws = new this.WS(
-      scribeUrl(
-        this.opts.url ?? SCRIBE_URL,
-        token,
-        this.opts.keyterms ?? [],
-        this.opts.languageHint,
-      ),
-    );
+    const ws = new this.WS(this.opts.url, [STREAM_PROTOCOL, ticket]);
     this.ws = ws;
     ws.onmessage = (ev) => this.onMessage(ws, ev);
     ws.onclose = () => this.onDrop(ws);
@@ -213,16 +203,16 @@ export class ScribeSession {
   private onDrop(ws: WebSocket): void {
     if (ws !== this.ws || this.done) return;
     this.ws = undefined;
-    if (this.retried || !this.opts.refreshToken) {
+    if (this.retried || !this.opts.refreshTicket) {
       this.fail(new ScribeError("connection"));
       return;
     }
     this.retried = true;
     this.commitSentAt = 0;
     this.opts
-      .refreshToken()
-      .then((token) => {
-        if (!this.done) this.connect(token); // flush() replays every buffered chunk
+      .refreshTicket()
+      .then((ticket) => {
+        if (!this.done) this.connect(ticket); // flush() replays every buffered chunk
       })
       .catch(() => this.fail(new ScribeError("connection")));
   }

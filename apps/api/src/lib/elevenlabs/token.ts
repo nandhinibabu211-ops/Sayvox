@@ -16,7 +16,7 @@ export type MintScribeToken = (opts: { maxSessionSeconds: number }) => Promise<S
 export class ProviderError extends Error {
   constructor(
     readonly provider: "elevenlabs",
-    readonly status: number | "timeout" | "network",
+    readonly status: number | "timeout" | "network" | "not_configured",
   ) {
     super(`${provider} token request failed: ${status}`);
     this.name = "ProviderError";
@@ -32,7 +32,8 @@ export function createScribeTokenMinter(opts: {
   const fetchFn = opts.fetchFn ?? fetch;
   const now = opts.now ?? Date.now;
   return async ({ maxSessionSeconds }) => {
-    if (!opts.apiKey) throw new Error("ELEVENLABS_API_KEY is not configured");
+    // No key (e.g. staging before keys are added): a clean 503, not a 500.
+    if (!opts.apiKey) throw new ProviderError("elevenlabs", "not_configured");
     const url = `${ENDPOINT}?max_session_duration_seconds=${Math.max(1, Math.floor(maxSessionSeconds))}`;
     const issuedAt = now();
     let res: Response;

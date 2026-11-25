@@ -36,21 +36,6 @@ export function decideQuota(plan: PlanLimits, used: UsedSeconds, at: Date): Quot
   };
 }
 
-/**
- * Billable seconds for a finished session: the client's count, but never more than the
- * session cap or the wall-clock time since the session started (Story 2.5 AC 3).
- */
-export function clampAudioSeconds(
-  reported: number,
-  startedAt: Date,
-  at: Date,
-  maxSessionSeconds = MAX_SESSION_SECONDS,
-): number {
-  const wall = Math.max(0, (at.getTime() - startedAt.getTime()) / 1000);
-  const v = Math.min(Math.max(0, reported), maxSessionSeconds, wall);
-  return Math.round(v * 100) / 100;
-}
-
 /** Scribe realtime caps keyterms at 100 terms and 1 000 characters in total (research R1). */
 export const KEYTERM_MAX_COUNT = 100;
 export const KEYTERM_MAX_CHARS = 1_000;

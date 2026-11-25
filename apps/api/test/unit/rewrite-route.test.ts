@@ -18,6 +18,7 @@ let mock: MockOpenRouter;
 let logs = "";
 const records: RewriteResult[] = [];
 let sessionStatus: string | null = "started";
+let claimAllowed = true;
 
 const store: RewriteStore = {
   sessionStatus: async (_u, id) => (id === SESSION ? sessionStatus : null),
@@ -54,6 +55,7 @@ function makeApp() {
       prices: () => new Map([[HAIKU, { prompt: 0.0000001, completion: 0.0000005 }]]),
       ttftMs: 250,
       totalMs: 3_000,
+      claim: async () => claimAllowed,
     },
   });
 }
@@ -98,6 +100,7 @@ beforeEach(() => {
   records.length = 0;
   logs = "";
   sessionStatus = "started";
+  claimAllowed = true;
 });
 
 describe("POST /v1/rewrite (T042, contracts/rewrite-sse.md)", () => {
@@ -190,6 +193,16 @@ describe("POST /v1/rewrite (T042, contracts/rewrite-sse.md)", () => {
     sessionStatus = "completed";
     const ended = await post(app, body());
     expect(ended.statusCode).toBe(409);
+    expect(mock.requests).toHaveLength(0);
+    await app.close();
+  });
+
+  it("refuses another rewrite once the session's cap is used, before calling a model", async () => {
+    const app = makeApp();
+    claimAllowed = false;
+    const res = await post(app, body());
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error.code).toBe("RATE_LIMITED");
     expect(mock.requests).toHaveLength(0);
     await app.close();
   });

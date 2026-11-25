@@ -66,6 +66,26 @@ jobs:
           workspaces: apps/desktop/src-tauri
       - run: pnpm install --frozen-lockfile
 
+      # The dev CSP allows localhost and legacy *.a.run.app hosts. Release builds may talk to
+      # exactly one API origin, the one they are built for (current Cloud Run URLs are
+      # <service>-<number>.<region>.run.app, which the dev pattern would not even match).
+      - name: Pin the webview CSP to the API origin
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          $u = [Uri]$env:API_BASE_URL
+          if ($u.Scheme -ne "https") { Write-Error "API_BASE_URL must be an https URL"; exit 1 }
+          $origin = "https://$($u.Authority)"
+          $base = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).app.security.csp
+          # https for the API, wss for the metered speech stream (/v1/stream).
+          $csp = $base.Replace("http://localhost:8787 ws://localhost:8787 https://*.a.run.app", "$origin wss://$($u.Authority)")
+          if ($csp -eq $base) { Write-Error "dev CSP hosts not found in tauri.conf.json"; exit 1 }
+          $path = "apps/desktop/src-tauri/tauri.release.conf.json"
+          $conf = Get-Content $path -Raw | ConvertFrom-Json
+          $conf | Add-Member -NotePropertyName app -NotePropertyValue @{ security = @{ csp = $csp } } -Force
+          $conf | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $path
+          "Release CSP connect-src uses $origin"
+
       - name: Build (.msi + NSIS .exe, updater artifacts signed)
         working-directory: apps/desktop
         env:
