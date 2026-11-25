@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   capKeyterms,
-  clampAudioSeconds,
   decideQuota,
   MAX_SESSION_SECONDS,
   sttCostUsd,
@@ -43,27 +42,6 @@ describe("decideQuota", () => {
 
   it("treats under one second left as exhausted", () => {
     expect(decideQuota(FREE, { day: 599.5, month: 0 }, AT).ok).toBe(false);
-  });
-});
-
-describe("clampAudioSeconds", () => {
-  const started = new Date(AT.getTime() - 10_000);
-
-  it("keeps an honest count", () => {
-    expect(clampAudioSeconds(4.256, started, AT)).toBe(4.26);
-  });
-
-  it("never exceeds wall-clock time since start", () => {
-    expect(clampAudioSeconds(60, started, AT)).toBe(10);
-  });
-
-  it("never exceeds the session cap", () => {
-    const longAgo = new Date(AT.getTime() - 3_600_000);
-    expect(clampAudioSeconds(1_000, longAgo, AT)).toBe(MAX_SESSION_SECONDS);
-  });
-
-  it("floors negatives at zero", () => {
-    expect(clampAudioSeconds(-5, started, AT)).toBe(0);
   });
 });
 

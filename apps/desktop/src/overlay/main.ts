@@ -1,18 +1,23 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { emitTo } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
 import { DEFAULT_PREFS } from "../services/modeResolver";
 import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
-import { CLIENT_VERSION, createApiClient } from "../services/runtime";
+import { API_BASE_URL, CLIENT_VERSION, createApiClient } from "../services/runtime";
 import { streamRewrite } from "../services/rewriteClient";
-import { ScribeSession } from "../services/scribeClient";
+import { ScribeSession, streamUrl } from "../services/scribeClient";
 import { credentialSessionStore } from "../services/session";
 import { parseCached, SETTINGS_CACHE_KEY, SettingsStore } from "../services/settingsStore";
 import { TokenCache } from "../services/tokenCache";
 import { REVIEW_HINT } from "./review";
-import type { OverlayState } from "./state";
+import { errorFor, type OverlayState } from "./state";
 import { startTelemetry } from "../telemetry";
+import { ProductAnalytics } from "../telemetry/analytics";
+import { ClientConfigWatcher, trayText } from "../updates/clientConfig";
+import { fetchClientConfig, startUpdates } from "../updates/runtime";
+import { hotkeyLabel } from "../settings/model";
 
 /**
  * Overlay window: runs the dictation pipeline and renders its state (T038).
@@ -20,7 +25,9 @@ import { startTelemetry } from "../telemetry";
  */
 
 const api = createApiClient();
-startTelemetry(api, "overlay");
+const STREAM_URL = streamUrl(API_BASE_URL);
+const telemetry = startTelemetry(api, "overlay");
+const analytics = new ProductAnalytics((name, fields) => telemetry.event(name, fields));
 const tokens = new TokenCache(() =>
   api.json<SessionStartResponse>("/v1/session/start", { method: "POST", body: "{}" }),
 );
@@ -121,6 +128,18 @@ function render(s: OverlayState): void {
         action.textContent = "Open settings";
         action.hidden = false;
         onAction = () => void openMicrophoneSettings();
+      } else if (s.action === "update") {
+        action.textContent = "Update";
+        action.hidden = false;
+        onAction = () => void showMainWindow();
+      } else if (s.action === "upgrade") {
+        // T086: daily/monthly limit reached → Settings → Usage & Plan.
+        action.textContent = "Upgrade";
+        action.hidden = false;
+        onAction = () => {
+          void showMainWindow().then(() => emitTo("main", "settings://open", { page: "usage" }));
+          render({ kind: "hidden" });
+        };
       } else if (s.action === "signIn") {
         action.textContent = "Sign in";
         action.hidden = false;
@@ -135,7 +154,30 @@ function render(s: OverlayState): void {
   }
 }
 
+async function showMainWindow(): Promise<void> {
+  const w = await WebviewWindow.getByLabel("main");
+  await w?.show();
+  await w?.setFocus();
+}
+
 action.addEventListener("click", () => onAction?.());
+
+// Kill switch / forced update (T081) and auto-update timing (T082).
+const clientConfig = new ClientConfigWatcher({ fetchConfig: fetchClientConfig });
+let lastActivity = 0;
+const updateTray = () =>
+  void invoke("set_tray_status", {
+    text: trayText(clientConfig.gate, hotkeyLabel(prefs?.hotkey ?? "Ctrl+Shift")),
+  }).catch(() => {});
+clientConfig.subscribe(updateTray);
+// A forced update brings up the settings window with the blocking "Update required" panel.
+let shownForUpdate = false;
+clientConfig.subscribe(() => {
+  if (clientConfig.gate.kind === "updateRequired" && !shownForUpdate) {
+    shownForUpdate = true;
+    void showMainWindow();
+  }
+});
 badge.addEventListener("click", () => pipeline.cycleMode());
 
 // Settings (Story 2.6): cached copy at once, fresh copy from the API when signed in. The
@@ -152,6 +194,7 @@ function applySettings(s: SettingsResponse | null): void {
   if (s && s.hotkey !== appliedHotkey) {
     appliedHotkey = s.hotkey;
     void invoke("set_hotkey", { hotkey: s.hotkey }).catch(() => {});
+    updateTray();
   }
 }
 applySettings(prefs);
@@ -167,12 +210,22 @@ window.addEventListener("storage", (e) => {
 
 const pipeline = new DictationPipeline({
   takeSession: () => tokens.take(),
-  newScribe: (opts) => new ScribeSession(opts),
+  newScribe: (opts) => new ScribeSession({ ...opts, url: STREAM_URL }),
   insert: (t) => invoke<InsertOutcome>("insert_text", { text: t }),
   now: () => invoke<number>("dictation_now"),
   endSession: (id, body) =>
     api.json(`/v1/session/${id}/end`, { method: "POST", body: JSON.stringify(body) }),
-  onState: render,
+  onState: (s) => {
+    if (s.kind !== "hidden") lastActivity = Date.now();
+    analytics.observe(s);
+    render(s);
+  },
+  blocked: () => {
+    const g = clientConfig.gate;
+    if (g.kind === "paused") return { kind: "error", message: g.message };
+    if (g.kind === "updateRequired") return errorFor("CLIENT_OUTDATED");
+    return null;
+  },
   clientVersion: CLIENT_VERSION,
   rewrite: (req, onToken) => streamRewrite(api, req, (_t, soFar) => onToken(soFar)),
   recordTiming: (record) => void invoke("timing_append", { record }).catch(() => {}),
@@ -220,5 +273,7 @@ async function warm(): Promise<void> {
   }
 }
 void warm();
+clientConfig.start();
+startUpdates(clientConfig, () => (lastActivity ? Date.now() - lastActivity : Infinity));
 window.addEventListener("online", () => void warm());
 setInterval(() => void warm(), 5 * 60_000);

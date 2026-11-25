@@ -12,7 +12,12 @@ import { hotkeyLabel } from "./settings/model";
 import { mountModes } from "./settings/Modes";
 import { mountPreset } from "./settings/Preset";
 import { mountPrivacy } from "./settings/Privacy";
+import { mountUsage } from "./settings/Usage";
+import { listen } from "@tauri-apps/api/event";
 import { startTelemetry } from "./telemetry";
+import { ClientConfigWatcher } from "./updates/clientConfig";
+import { mountGate } from "./updates/gateView";
+import { fetchClientConfig } from "./updates/runtime";
 
 /** Settings / onboarding window (front-end spec §2–4). */
 
@@ -29,13 +34,22 @@ const store = new SettingsStore({
 const ctx: SettingsContext = { store, api, status: say };
 startTelemetry(api, "settings");
 
+// Forced update / kill switch (T081). The overlay polls too; this window keeps its own view.
+const clientConfig = new ClientConfigWatcher({ fetchConfig: fetchClientConfig });
+mountGate(clientConfig);
+clientConfig.start();
+
 // ── Navigation ──
-type Page = "home" | "general" | "modes" | "preset" | "dictionary" | "privacy";
+type Page = "home" | "general" | "modes" | "preset" | "dictionary" | "usage" | "privacy";
+let usageView: { refresh: () => Promise<void> } | undefined;
 const mounts: Record<Exclude<Page, "home">, (root: HTMLElement, c: SettingsContext) => void> = {
   general: mountGeneral,
   modes: mountModes,
   preset: mountPreset,
   dictionary: mountDictionary,
+  usage: (root, c) => {
+    usageView = mountUsage(root, c);
+  },
   privacy: (root, c) =>
     mountPrivacy(root, {
       ...c,
@@ -61,6 +75,8 @@ function show(page: Page): void {
   if (!mounted.has(page)) {
     mounted.add(page);
     mounts[page as Exclude<Page, "home">]($(`page-${page}`), ctx);
+  } else if (page === "usage") {
+    void usageView?.refresh();
   }
   say("");
 }
@@ -75,6 +91,7 @@ store.subscribe((s) => {
 async function onAccountDeleted(): Promise<void> {
   // Screens hold the deleted user's data; rebuild them on the next sign-in.
   for (const p of [...mounted]) if (p !== "home") $(`page-${p}`).replaceChildren();
+  usageView = undefined;
   mounted.clear();
   mounted.add("home");
   show("home");
@@ -126,7 +143,13 @@ $<HTMLButtonElement>("sign-out").addEventListener("click", async () => {
 // Re-check settings when the window comes back (the tray reopens a hidden window).
 window.addEventListener("focus", () => {
   if (!$("signed-in").hidden) void store.load().catch(() => {});
+  if (!$("page-usage").hidden) void usageView?.refresh();
 });
+
+// The overlay's "Upgrade" (daily limit reached, T086) opens this window on Usage & Plan.
+void listen<{ page?: string }>("settings://open", (e) => {
+  if (e.payload.page === "usage" && !$("signed-in").hidden) show("usage");
+}).catch(() => {});
 
 void (async () => {
   let version = "dev";

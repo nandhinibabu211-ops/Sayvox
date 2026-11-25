@@ -5,6 +5,7 @@ import { subscriptions, users } from "../../lib/db/schema";
 import { keys, TTL_SECONDS } from "../../lib/redis/keys";
 import type { AuthUser } from "../auth/users";
 import type { DeleteIdentity } from "./identity";
+import { LIVE } from "../billing/plans";
 
 /**
  * Account deletion (Story 5.7, T075). Every step is idempotent, so a failed deletion is
@@ -12,7 +13,7 @@ import type { DeleteIdentity } from "./identity";
  *
  * 1. Tombstone the identity in Redis, so a still-valid ID token can't recreate the user
  *    (the user resolver upserts on first request) while or after we delete.
- * 2. Cancel live subscriptions (billing, Phase 9). Refuse rather than leave someone paying.
+ * 2. Cancel live subscriptions at Razorpay, immediately. Refuse rather than leave someone paying.
  * 3. Delete the Identity Platform account: the refresh token stops working.
  * 4. `DELETE FROM users`: settings, dictionary, sessions, usage and subscriptions cascade.
  * 5. Purge the user's Redis keys (rate limit, quotas, settings cache).
@@ -37,8 +38,6 @@ export class SubscriptionCancelUnavailable extends Error {
     this.name = "SubscriptionCancelUnavailable";
   }
 }
-
-const LIVE = ["active", "past_due", "incomplete"] as const;
 
 export async function purgeUserKeys(redis: Redis, userId: string): Promise<number> {
   let removed = 0;

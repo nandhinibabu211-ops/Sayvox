@@ -12,3 +12,4 @@
 | [ADR-009](ADR-009-temporary-domains.md) | Temporary Google domains (`run.app`, `web.app`); load balancer + Cloud Armor deferred | Accepted | 2026-11-24 |
 | [ADR-010](ADR-010-windows-first.md) | Windows 10/11 only; macOS out of scope | Accepted | 2026-11-24 |
 | [ADR-008](ADR-008-llm-gateway.md) | LLM provider: OpenRouter (no Vertex AI, no Gemini API) | Accepted | 2026-11-24 |
+| [ADR-011](ADR-011-metered-audio-proxy.md) | Audio goes through a metering proxy in the API | Accepted | 2026-11-25 |

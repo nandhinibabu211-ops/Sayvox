@@ -11,7 +11,7 @@ import { ApiError } from "./apiClient";
 import { cleanup } from "./cleanup";
 import { DEFAULT_PREFS, nextMode, resolveMode, type ModePrefs } from "./modeResolver";
 import type { RewriteDone } from "./rewriteClient";
-import type { CommitResult, ScribeOptions } from "./scribeClient";
+import type { CommitResult, ScribeStreamOptions } from "./scribeClient";
 import { ScribeError } from "./scribeClient";
 import { SessionExpiredError } from "./session";
 
@@ -37,7 +37,7 @@ export interface ScribeLike {
 
 export interface PipelineDeps {
   takeSession: () => Promise<SessionStartResponse>;
-  newScribe: (opts: ScribeOptions) => ScribeLike;
+  newScribe: (opts: ScribeStreamOptions) => ScribeLike;
   insert: (text: string) => Promise<InsertOutcome>;
   /** Rust monotonic clock (same clock as event `t`). */
   now: () => Promise<number>;
@@ -54,6 +54,11 @@ export interface PipelineDeps {
   reviewKeys?: (active: boolean) => void;
   /** Injected in tests; built from `reviewKeys` otherwise. */
   reviewGate?: ReviewGate;
+  /**
+   * Kill switch or forced update from `/v1/client-config` (T081): when set, a press shows
+   * this error at once and no session is started.
+   */
+  blocked?: () => Extract<OverlayState, { kind: "error" }> | null;
   /** Local timing log for the Phase 1 gate (debug builds); numbers only. */
   recordTiming?: (r: {
     releaseToInsertMs: number;
@@ -77,11 +82,17 @@ interface Active {
   threadContext?: string;
 }
 
+/** Server error text for quota errors ("Monthly limit reached"); undefined otherwise. */
+function quotaMessage(err: unknown): string | undefined {
+  return err instanceof ApiError && err.code === "QUOTA_EXCEEDED" ? err.message : undefined;
+}
+
 function errorCode(err: unknown): string {
   if (err instanceof SessionExpiredError) return "SESSION_EXPIRED";
   if (err instanceof ApiError) return err.code;
-  if (err instanceof ScribeError)
-    return err.providerType === "quota_exceeded" ? "QUOTA_EXCEEDED" : "scribe";
+  // ElevenLabs `quota_exceeded` is OUR provider account running out, not the user's plan:
+  // telling the user to upgrade would be wrong, so it's a generic service error.
+  if (err instanceof ScribeError) return "scribe";
   if (err instanceof TypeError) return "offline";
   return "unknown";
 }
@@ -154,6 +165,12 @@ export class DictationPipeline {
     // A new dictation while one waits for review: the user moved on, so discard it.
     this.review.decide("discard");
     if (this.active && !this.active.ended) this.cancel();
+    const blocked = this.deps.blocked?.();
+    if (blocked) {
+      this.active = undefined;
+      this.fail(blocked);
+      return;
+    }
     const session = this.deps.takeSession();
     const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
     const a: Active = {
@@ -165,10 +182,8 @@ export class DictationPipeline {
       mode,
       scribe: session.then((s) => {
         const scribe = this.deps.newScribe({
-          token: s.scribeToken,
-          keyterms: s.keyterms,
-          languageHint: s.languageHint ?? null,
-          refreshToken: async () => (await this.deps.takeSession()).scribeToken,
+          ticket: s.streamTicket,
+          refreshTicket: async () => (await this.deps.takeSession()).streamTicket,
           onPartial: (text) => {
             if (this.active !== a || a.ended) return;
             a.partial = text;
@@ -184,7 +199,7 @@ export class DictationPipeline {
     a.scribe.catch((err: unknown) => {
       if (this.active === a && !a.ended) {
         a.ended = true;
-        this.fail(errorFor(errorCode(err)));
+        this.fail(errorFor(errorCode(err), quotaMessage(err)));
       }
     });
   }
@@ -203,7 +218,7 @@ export class DictationPipeline {
       for (const c of a.pending.splice(0)) scribe.sendChunk(c);
       result = await scribe.commit();
     } catch (err) {
-      this.fail(errorFor(errorCode(err)));
+      this.fail(errorFor(errorCode(err), quotaMessage(err)));
       const s = await a.session.catch(() => undefined);
       if (s) void this.end(a, s.sessionId, audioSeconds, "failed", 0, 0);
       return;

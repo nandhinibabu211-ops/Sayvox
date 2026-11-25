@@ -15,6 +15,7 @@ mod hotkey;
 mod insert;
 mod overlay;
 mod selection;
+mod updater;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -28,6 +29,15 @@ fn focus_main_window(app: &tauri::AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+    }
+}
+
+/// Tray tooltip reflects service state (kill switch, update required) (front-end spec §3.5).
+#[tauri::command]
+fn set_tray_status(app: tauri::AppHandle, text: String) {
+    if let Some(tray) = app.tray_by_id("sayvox") {
+        let text: String = text.chars().take(120).collect();
+        let _ = tray.set_tooltip(Some(text));
     }
 }
 
@@ -71,6 +81,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             #[cfg(debug_assertions)]
             {
@@ -78,6 +89,7 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
             }
+            updater::manage(app);
             build_tray(app)?;
             overlay::configure(app.handle());
             dictation::start(app.handle())?;
@@ -121,6 +133,10 @@ pub fn run() {
             overlay::overlay_resize,
             selection::set_reply_context,
             active_app::list_running_apps,
+            updater::update_check,
+            updater::update_download,
+            updater::update_install,
+            set_tray_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sayvox");
