@@ -82,7 +82,12 @@ How it was created (repeat in this order for a rebuild):
   `/v1/session/start` answers 503 `PROVIDER_UNAVAILABLE` and rewrites fail over to raw text.
 - GitHub `staging` environment variables are set. `DEPLOY_ENABLED` is **not** set: the
   workflow's prod job must have a `production` environment with required reviewers first.
-- Observability (`infra/observability`) needs an alert email.
+- Observability is applied (2026-11-26, state prefix `observability/staging`): dashboard,
+  Cloud Run 5xx, job-failure, spend-spike and reconciliation alerts to the owner's Google Cloud
+  email, BigQuery product-events sink, ₹2,000/month project budget. Alerts on the API's own
+  metrics (latency, fallback, Scribe reconnects) need those metrics to exist, so they are off
+  (`-var app_metric_alerts=false`) until the first real dictations; then re-apply without it.
+  Still manual: Error Reporting → Configure notifications (new crash types).
 
 ## Every deploy
 

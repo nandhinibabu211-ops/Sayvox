@@ -52,6 +52,7 @@ resource "google_project_service" "apis" {
     "logging.googleapis.com",
     "bigquery.googleapis.com",
     "billingbudgets.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
   ])
   service            = each.value
   disable_on_destroy = false
