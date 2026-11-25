@@ -10,9 +10,8 @@ refer to SECURITY_AUDIT.md.
 | KI-04 | High (blocker) | Staging is deployed (2026-11-25, cheap shape, smoke passes) but without provider keys; prod is not created; Identity Platform not configured | Add staging keys; prod setup only with owner approval |
 | KI-05 | Medium | Pro plan price and limits are placeholders (`seed.ts`); Razorpay plan ids not created | Decide pricing; create the Razorpay plan; set `RAZORPAY_PLAN_IDS` |
 | KI-06 | Medium | `db:setup` runs on every deploy and **overwrites** plan rows from `seed.ts`, so prices changed in the database are reset | Treat `seed.ts` as the source of truth for plans (document); change plans by code |
-| KI-07 | Medium | Quality never measured: no recorded audio, no Tamil-English cases, no Lemon baseline, eval gate has never run with a key (T056, T058) | Record consented phrases; add Tamil-English cases; record Lemon outputs; run the eval |
+| KI-07 | Medium | Quality never measured: no recorded audio, no Lemon baseline, eval gate has never run with a key (T056, T058). Six synthetic Tamil-English (Tanglish) text cases added 2026-11-26 | Record consented phrases (incl. Tamil-English); record Lemon outputs; run the eval |
 | KI-08 | Medium | No edge WAF / rate limit until a domain exists (SEC-09) | Get a domain; follow deploy.md "Edge" |
-| KI-09 | Low | No `cargo audit` in CI | Add a `cargo audit` job |
 | KI-10 | Low | Moderate `pnpm audit` advisories in dev tools (esbuild via drizzle-kit, glob/minimatch via testcontainers) | Upgrade when the tools release fixes |
 | KI-11 | Low | Terraform uses Postgres 17; dev compose and integration tests use 16 | Align (move tests and compose to 17) |
 | KI-13 | Low | ElevenLabs usage API: STT series label unconfirmed; endpoint marked deprecated (research R11) | Check on the first reconcile run |

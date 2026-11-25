@@ -79,6 +79,17 @@ jobs:
             exit 1
           fi
 
+  rust-audit:
+    name: Rust dependency audit (RustSec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      # Fails on known vulnerabilities; unmaintained/yanked crates are reported as warnings.
+      - run: cargo audit --file apps/desktop/src-tauri/Cargo.lock
+
   rust:
     name: Rust fmt, clippy, test (Windows)
     runs-on: windows-latest
