@@ -24,8 +24,8 @@ output "github_vars" {
     MIGRATE_JOB                = google_cloud_run_v2_job.job["migrate"].name
     JOBS                       = join(",", [for k in keys(local.job_args) : google_cloud_run_v2_job.job[k].name])
     # Deterministic URL form (what Identity Platform authorizes and the desktop is built with).
-    WEB_ORIGIN                 = "https://${google_cloud_run_v2_service.web.name}-${data.google_project.this.number}.${var.region}.run.app"
-    API_BASE_URL               = var.domain == "" ? google_cloud_run_v2_service.api.uri : "https://${var.domain}"
+    WEB_ORIGIN   = "https://${google_cloud_run_v2_service.web.name}-${data.google_project.this.number}.${var.region}.run.app"
+    API_BASE_URL = var.domain == "" ? google_cloud_run_v2_service.api.uri : "https://${var.domain}"
   }
 }
 
