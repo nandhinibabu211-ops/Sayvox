@@ -35,9 +35,15 @@ Postgres 16. All timestamps `timestamptz` UTC. **No entity stores transcript, pa
 | user_id | uuid | FK → users.id ON DELETE CASCADE |
 | provider | text, default `'razorpay'` | only Razorpay today (ADR-003) |
 | provider_sub_id | text | unique |
-| status | enum (`active`, `past_due`, `cancelled`, `incomplete`) | |
-| current_period_end | timestamptz | |
+| status | enum (`active`, `past_due`, `cancelled`, `incomplete`, `halted`) | from Razorpay: created/authenticated -> incomplete, active -> active, pending -> past_due (grace), halted/paused -> halted, cancelled/completed/expired -> cancelled |
+| current_period_end | timestamptz | Razorpay `current_end` |
+| plan_id | text | FK -> plans.id; the Sayvox plan this subscription grants |
+| cancel_at_period_end | bool | default false; user cancelled, plan kept until period end |
+| last_event_at | timestamptz | newest webhook `created_at` applied (out-of-order events ignored) |
+| created_at | timestamptz | default now() |
 | PK | (user_id, provider_sub_id) | |
+
+`users.plan_id` = plan of the newest subscription in `active`/`past_due`, else `free` (recomputed on every webhook).
 
 ### settings
 | Column | Type | Constraints |
@@ -69,9 +75,12 @@ Count per user ≤ `plans.dictionary_limit`.
 | started_at / ended_at | timestamptz | |
 | mode | mode | nullable until rewrite/end |
 | target_app | text | app id only (exe name) |
-| audio_seconds | numeric(8,2) | clamped ≤ max_session_seconds |
+| audio_seconds | numeric(8,2) | metered by the `/v1/stream` proxy (≤ max_session_seconds), never client-reported (ADR-011); null if nothing was streamed |
+| metered_at | timestamptz | set when the proxy charged this session (charges once) |
 | model_used | text | nullable (dictation fast path) |
 | fallback_used | bool | default false |
+| keyterms_used | bool | default false; keyterms sent to Scribe (+$0.08/h STT cost) |
+| max_session_seconds | int | default 300; cap given to client and ElevenLabs (`max_session_duration_seconds`) |
 | input_tokens / output_tokens | int | |
 | ttft_ms / total_ms | int | backend LLM timings |
 | stt_commit_ms / release_to_insert_ms | int | client timings |
@@ -108,12 +117,15 @@ started ──(sweeper: TTL expired)───▶ abandoned
 ```
 
 ## Redis keys
+
 | Key | Type | TTL | Purpose |
 | --- | --- | --- | --- |
 | `rl:{userId}` | token bucket | 60 s | session-start rate limit |
 | `quota:day:{userId}:{yyyymmdd}` | int (seconds) | 48 h | daily audio |
 | `quota:month:{userId}:{yyyymm}` | int (seconds) | 40 d | monthly audio |
 | `settings:{userId}` | JSON | 5 min | settings + keyterms cache |
+| `stream:{ticket}` | JSON | Scribe token TTL (15 min); deleted on use | one-time `/v1/stream` ticket: session, user, Scribe token, keyterms, language, cap (ADR-011) |
+| `rw:{sessionId}` | int | 30 min | rewrites started for the session, cap 2 (audit SEC-01) |
 | `cfg:client` | JSON | none | kill switch, min version, rollout |
 | `cfg:presets` | JSON | none | preset → model slug overrides |
 

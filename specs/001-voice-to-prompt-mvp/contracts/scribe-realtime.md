@@ -1,4 +1,4 @@
-# Contract: ElevenLabs Scribe v3 Live (client ↔ provider)
+# Contract: ElevenLabs Scribe v3 Live (client ↔ API proxy ↔ provider)
 
 > Verified against the ElevenLabs API reference on 2026-11-25 (research R1, task T019).
 
@@ -8,11 +8,24 @@ Headers: `xi-api-key: $ELEVENLABS_API_KEY` → `{ "token": "<single-use>" }`
 - Expires **15 minutes** after minting; consumed on first use. Pre-fetched tokens older than ~14 min must be replaced.
 - `max_session_duration_seconds` makes ElevenLabs close the session itself — the server-side cap for Story 2.3.
 
-## Connect (client → ElevenLabs)
+## Connect (client → API proxy, ADR-011)
+```
+wss://<api>/v1/stream
+Sec-WebSocket-Protocol: sayvox.stream.v1, <streamTicket>
+```
+- The ticket comes from `/v1/session/start`, works once, and expires with the Scribe token.
+- Wrong, missing or reused ticket: HTTP 401 before the upgrade.
+- The proxy answers with subprotocol `sayvox.stream.v1` and then passes the Scribe messages
+  below through unchanged in both directions. It accepts only `input_audio_chunk` from the
+  client (anything else: close 1008), meters `bytes / 32 000` seconds per chunk, stops
+  forwarding at `maxSessionSeconds` (sending a commit instead), and charges the metered
+  seconds to the user when the socket closes.
+
+## Connect (API proxy → ElevenLabs)
 ```
 wss://api.elevenlabs.io/v1/speech-to-text/realtime
   ?model_id=scribe_v3_live
-  &token=<scribeToken>
+  &token=<scribe token, server-side only>
   &audio_format=pcm_16000
   &commit_strategy=manual
   [&language_code=<hint>]

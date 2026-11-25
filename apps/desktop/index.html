@@ -7,7 +7,75 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main id="app"></main>
+    <p id="paused-banner" class="banner" role="status" hidden></p>
+    <div
+      id="gate"
+      class="gate"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="gate-title"
+      aria-describedby="gate-text"
+      hidden
+    >
+      <div class="gate-card">
+        <h2 id="gate-title"></h2>
+        <p id="gate-text"></p>
+        <div class="row">
+          <button id="gate-update" type="button" class="primary">Update now</button>
+          <button id="gate-download" type="button" class="link" hidden>
+            Download the latest version
+          </button>
+        </div>
+        <p id="gate-status" class="hint" aria-live="polite"></p>
+      </div>
+    </div>
+    <main id="signed-out" class="onboarding" hidden>
+      <h1>Sayvox</h1>
+      <p class="sub">
+        Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd>, speak, release. Your words appear where your cursor
+        is.
+      </p>
+      <section>
+        <h2>Sign in</h2>
+        <p>
+          Sign in once on this PC. A browser tab opens; come back here when it says you're done.
+        </p>
+        <button id="sign-in" type="button" class="primary">Sign in</button>
+      </section>
+    </main>
+
+    <div id="signed-in" class="shell" hidden>
+      <nav class="sidebar" aria-label="Settings">
+        <p class="brand">Sayvox</p>
+        <button type="button" data-page="home" aria-current="page">Home</button>
+        <button type="button" data-page="general">General</button>
+        <button type="button" data-page="modes">Modes</button>
+        <button type="button" data-page="preset">Preset</button>
+        <button type="button" data-page="dictionary">Dictionary</button>
+        <button type="button" data-page="usage">Usage &amp; Plan</button>
+        <button type="button" data-page="privacy">Privacy &amp; Account</button>
+        <button id="sign-out" type="button" class="link signout">Sign out</button>
+      </nav>
+      <main class="content">
+        <section id="page-home" class="page">
+          <h2>Ready</h2>
+          <p>Signed in as <strong id="email"></strong>.</p>
+          <label class="try"
+            >Try it: click in this box, hold <kbd class="hotkey-label">Ctrl + Shift</kbd> and say
+            <em>"Schedule the demo for Friday"</em>.
+            <textarea id="try" rows="3"></textarea>
+          </label>
+        </section>
+        <section id="page-general" class="page" hidden></section>
+        <section id="page-modes" class="page" hidden></section>
+        <section id="page-preset" class="page" hidden></section>
+        <section id="page-dictionary" class="page" hidden></section>
+        <section id="page-usage" class="page" hidden></section>
+        <section id="page-privacy" class="page" hidden></section>
+      </main>
+    </div>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
