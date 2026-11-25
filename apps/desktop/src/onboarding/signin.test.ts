@@ -6,7 +6,8 @@ function fakeDeps() {
   const unlistened: string[] = [];
   const deps: SignInDeps = {
     begin: vi.fn(async () => ({
-      signinUrl: "https://sayvox-app-2026.web.app/signin?port=5000&state=abc",
+      signinUrl:
+        "https://sayvox-staging-web-264655228768.us-west1.run.app/signin?port=5000&state=abc",
       state: "abc",
     })),
     open: vi.fn(async () => {}),
@@ -24,7 +25,7 @@ describe("signIn", () => {
     const p = signIn(deps);
     await vi.waitFor(() => expect(deps.open).toHaveBeenCalled());
     expect(deps.open).toHaveBeenCalledWith(
-      "https://sayvox-app-2026.web.app/signin?port=5000&state=abc",
+      "https://sayvox-staging-web-264655228768.us-west1.run.app/signin?port=5000&state=abc",
     );
     emit("auth://signed-in", { email: "a@example.com" });
     await expect(p).resolves.toEqual({ status: "signed-in", email: "a@example.com" });

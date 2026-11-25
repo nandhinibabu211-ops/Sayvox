@@ -3,6 +3,11 @@ output "api_url" {
   value       = google_cloud_run_v2_service.api.uri
 }
 
+output "web_url" {
+  description = "Web pages (sign-in, install, privacy, terms). Build the desktop app with SAYVOX_WEB_ORIGIN set to this."
+  value       = google_cloud_run_v2_service.web.uri
+}
+
 output "edge_ip" {
   description = "Point the domain's A record here (only when `domain` is set)."
   value       = var.domain == "" ? null : google_compute_global_address.edge[0].address
@@ -18,6 +23,8 @@ output "github_vars" {
     API_REPOSITORY             = "${var.region}-docker.pkg.dev/${var.project_id}/${local.repo_id}"
     MIGRATE_JOB                = google_cloud_run_v2_job.job["migrate"].name
     JOBS                       = join(",", [for k in keys(local.job_args) : google_cloud_run_v2_job.job[k].name])
+    # Deterministic URL form (what Identity Platform authorizes and the desktop is built with).
+    WEB_ORIGIN                 = "https://${google_cloud_run_v2_service.web.name}-${data.google_project.this.number}.${var.region}.run.app"
     API_BASE_URL               = var.domain == "" ? google_cloud_run_v2_service.api.uri : "https://${var.domain}"
   }
 }

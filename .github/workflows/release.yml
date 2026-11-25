@@ -86,6 +86,24 @@ jobs:
           $conf | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $path
           "Release CSP connect-src uses $origin"
 
+      # Web pages (sign-in, install, privacy) live on Cloud Run; the build bakes in their
+      # origin for the sign-in Origin check (Rust), the page links (TS) and the opener allow-list.
+      - name: Point the app at the web pages' origin
+        env:
+          WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+        run: |
+          $w = [Uri]$env:WEB_ORIGIN
+          if ($w.Scheme -ne "https") { Write-Error "WEB_ORIGIN must be an https URL"; exit 1 }
+          $origin = "https://$($w.Authority)"
+          $cap = "apps/desktop/src-tauri/capabilities/default.json"
+          $text = Get-Content $cap -Raw
+          $dev = "https://sayvox-staging-web-264655228768.us-west1.run.app/*"
+          if (-not $text.Contains($dev)) { Write-Error "staging web origin not found in $cap"; exit 1 }
+          $text.Replace($dev, "$origin/*") | Set-Content -Encoding utf8 -NoNewline $cap
+          "SAYVOX_WEB_ORIGIN=$origin" >> $env:GITHUB_ENV
+          "VITE_WEB_ORIGIN=$origin" >> $env:GITHUB_ENV
+          "Web origin: $origin"
+
       - name: Build (.msi + NSIS .exe, updater artifacts signed)
         working-directory: apps/desktop
         env:

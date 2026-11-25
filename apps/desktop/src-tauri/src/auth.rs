@@ -64,7 +64,10 @@ mod tests {
     fn signin_url_carries_port_and_state_only() {
         assert_eq!(
             super::signin_url(51234, "abc"),
-            "https://sayvox-app-2026.web.app/signin?port=51234&state=abc"
+            format!(
+                "{}/signin?port=51234&state=abc",
+                crate::auth_callback::SIGNIN_ORIGIN
+            )
         );
     }
 }

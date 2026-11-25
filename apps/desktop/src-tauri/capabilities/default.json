@@ -13,7 +13,7 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         {
-          "url": "https://sayvox-app-2026.web.app/*"
+          "url": "https://sayvox-staging-web-264655228768.us-west1.run.app/*"
         },
         {
           "url": "ms-settings:privacy-microphone"

@@ -112,6 +112,12 @@ variable "initial_image" {
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }
 
+variable "initial_web_image" {
+  description = "Web pages image for the first apply only (apps/web/Dockerfile)."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "otel_collector_image" {
   description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar (tag checked 2026-11-25 against the public registry)."
   type        = string

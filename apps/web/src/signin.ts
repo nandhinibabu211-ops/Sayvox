@@ -82,9 +82,16 @@ async function run(action: () => Promise<{ user: User }>): Promise<void> {
 const email = () => $<HTMLInputElement>("email").value.trim();
 const password = () => $<HTMLInputElement>("password").value;
 
-$<HTMLButtonElement>("google").addEventListener("click", () => {
-  void run(() => signInWithPopup(auth, new GoogleAuthProvider()));
-});
+// Google sign-in needs an OAuth consent screen + client in Identity Platform (owner step);
+// until VITE_GOOGLE_SIGNIN=true the button is hidden rather than failing on click.
+const googleButton = $<HTMLButtonElement>("google");
+if (import.meta.env["VITE_GOOGLE_SIGNIN"] === "true") {
+  googleButton.addEventListener("click", () => {
+    void run(() => signInWithPopup(auth, new GoogleAuthProvider()));
+  });
+} else {
+  googleButton.remove();
+}
 $<HTMLFormElement>("email-form").addEventListener("submit", (e) => {
   e.preventDefault();
   void run(() => signInWithEmailAndPassword(auth, email(), password()));
