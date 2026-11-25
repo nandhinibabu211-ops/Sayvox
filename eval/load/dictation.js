@@ -2,14 +2,17 @@
 //
 //   k6 run -e BASE_URL=https://<staging-api> -e TOKENS_FILE=tokens.json -e PEAK=50 eval/load/dictation.js
 //
-// One virtual user = one person dictating in a loop: session start -> ~6 s of "speech" ->
-// (for REWRITE_SHARE of presses) an AI rewrite -> session end. Real single-use Scribe
-// tokens are minted (no audio is streamed, so no STT cost); rewrites call OpenRouter with a
-// synthetic transcript and do cost tokens. Staging only: see docs/runbooks/load-test.md.
+// One virtual user = one person dictating in a loop: session start -> 3-9 s of audio
+// streamed through the API's metering proxy (/v1/stream, ADR-011) to ElevenLabs -> commit ->
+// (for REWRITE_SHARE of presses) an AI rewrite -> session end. The audio is silence but
+// ElevenLabs bills it like speech, and rewrites cost OpenRouter tokens. Staging only:
+// see docs/runbooks/load-test.md.
 //
 // TOKENS_FILE: JSON array of Identity Platform ID tokens for staging load-test users on a
 // plan with high limits (each VU picks one, so per-user rate limits are not the bottleneck).
 import http from "k6/http";
+import ws from "k6/ws";
+import encoding from "k6/encoding";
 import { check, sleep } from "k6";
 import { Counter, Trend } from "k6/metrics";
 
@@ -25,6 +28,7 @@ if (!Array.isArray(TOKENS) || TOKENS.length === 0)
   throw new Error("TOKENS_FILE must be a non-empty JSON array");
 
 const sessionStart = new Trend("sayvox_session_start_ms", true);
+const commitTime = new Trend("sayvox_commit_ms", true);
 const rewriteTotal = new Trend("sayvox_rewrite_ms", true);
 const quotaHits = new Counter("sayvox_quota_hits");
 
@@ -47,6 +51,9 @@ export const options = {
     http_req_failed: ["rate<0.01"],
     // Server target < 150 ms, alert at 250 ms; allow for the network from the k6 machine.
     sayvox_session_start_ms: ["p(95)<400"],
+    // Release -> committed transcript, through the proxy (feeds the 1.2 s dictation p95).
+    sayvox_commit_ms: ["p(95)<800"],
+    checks: ["rate>0.99"],
     // Section 16: prompt-mode release -> inserted p95 < 3 s; the rewrite is most of it.
     sayvox_rewrite_ms: ["p(95)<3000"],
   },
@@ -54,6 +61,58 @@ export const options = {
 
 // 429 (quota / rate limit) is an expected answer, not a failure of the service.
 http.setResponseCallback(http.expectedStatuses({ min: 200, max: 299 }, 429));
+
+// 250 ms of 16 kHz PCM16 silence, as a Scribe chunk.
+const AUDIO_CHUNK = JSON.stringify({
+  message_type: "input_audio_chunk",
+  audio_base_64: encoding.b64encode(new ArrayBuffer(8_000)),
+  commit: false,
+  sample_rate: 16_000,
+});
+const COMMIT = JSON.stringify({
+  message_type: "input_audio_chunk",
+  audio_base_64: "",
+  commit: true,
+  sample_rate: 16_000,
+});
+const WS_BASE = BASE.replace(/^http/, "ws");
+
+/** Stream `seconds` of audio through /v1/stream, commit, and time the committed transcript. */
+function stream(ticket, seconds) {
+  let committed = false;
+  const res = ws.connect(
+    `${WS_BASE}/v1/stream`,
+    {
+      headers: { "Sec-WebSocket-Protocol": `sayvox.stream.v1, ${ticket}` },
+      tags: { name: "stream" },
+    },
+    (socket) => {
+      let sent = 0;
+      let commitAt = 0;
+      socket.on("message", (raw) => {
+        const m = JSON.parse(raw);
+        if (m.message_type === "session_started") {
+          socket.setInterval(() => {
+            if (sent < seconds * 4) {
+              socket.send(AUDIO_CHUNK);
+              sent++;
+            } else if (!commitAt) {
+              commitAt = Date.now();
+              socket.send(COMMIT);
+            }
+          }, 250);
+        } else if (m.message_type === "committed_transcript") {
+          commitTime.add(Date.now() - commitAt);
+          committed = true;
+          socket.close();
+        }
+      });
+      socket.setTimeout(() => socket.close(), (seconds + 10) * 1000);
+    },
+  );
+  check(res, { "stream upgraded": (r) => r && r.status === 101 });
+  check(committed, { "transcript committed": (c) => c === true });
+}
 
 const TRANSCRIPT =
   "um so can you write a function that takes a list of orders and returns the total per customer " +
@@ -81,10 +140,10 @@ export default function () {
     sleep(1);
     return;
   }
-  const { sessionId } = start.json();
+  const { sessionId, streamTicket } = start.json();
 
-  const speakSeconds = 3 + Math.random() * 6;
-  sleep(speakSeconds);
+  const speakSeconds = Math.round(3 + Math.random() * 6);
+  stream(streamTicket, speakSeconds);
 
   const rewrite = Math.random() < REWRITE_SHARE;
   let releaseToInsertMs = 300;

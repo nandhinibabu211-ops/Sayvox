@@ -32,8 +32,9 @@ function expectStatus(res, ...codes) {
 const get = (path, init) =>
   fetch(`${base}${path}`, { signal: AbortSignal.timeout(10_000), ...init });
 
-await check("GET /healthz", async () => {
-  const res = await get("/healthz");
+// /health, not /healthz: Cloud Run's frontend reserves paths ending in "z".
+await check("GET /health", async () => {
+  const res = await get("/health");
   expectStatus(res, 200);
 });
 

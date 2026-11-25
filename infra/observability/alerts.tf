@@ -44,8 +44,11 @@ locals {
   }
 }
 
+# Alerts on the API's own metrics need those metrics to exist: Cloud Monitoring refuses a
+# policy on a metric type that has never received data. They appear after the first real
+# dictations (staging: once provider keys are added), so app_metric_alerts turns them on.
 resource "google_monitoring_alert_policy" "latency" {
-  for_each              = local.latency_alerts
+  for_each              = var.app_metric_alerts ? local.latency_alerts : {}
   display_name          = "[${var.env}] ${each.value.name}"
   combiner              = "OR"
   notification_channels = local.channels
@@ -75,7 +78,8 @@ resource "google_monitoring_alert_policy" "latency" {
 }
 
 resource "google_monitoring_alert_policy" "ratio" {
-  for_each              = local.ratio_alerts
+  # api_errors uses Cloud Run's own request_count, which exists from the first request.
+  for_each              = var.app_metric_alerts ? local.ratio_alerts : { api_errors = local.ratio_alerts.api_errors }
   display_name          = "[${var.env}] ${each.value.name}"
   combiner              = "OR"
   notification_channels = local.channels

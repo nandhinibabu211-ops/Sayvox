@@ -98,6 +98,8 @@ resource "google_compute_backend_service" "api" {
   load_balancing_scheme = "EXTERNAL_MANAGED"
   protocol              = "HTTPS"
   security_policy       = google_compute_security_policy.api[0].id
+  # No timeout_sec: serverless NEG backends don't support it; the Cloud Run service timeout
+  # (run.tf, 600 s) bounds requests and /v1/stream WebSockets.
   log_config {
     enable      = true
     sample_rate = 0.1

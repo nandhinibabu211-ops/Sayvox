@@ -9,11 +9,13 @@
 # - A release service account that GitHub Actions impersonates through Workload Identity
 #   Federation, limited to writing this bucket. No JSON keys.
 #
-#   terraform -chdir=infra/downloads init
+#   terraform -chdir=infra/downloads init -backend-config="bucket=sayvox-app-2026-tfstate" -backend-config="prefix=downloads"
 #   terraform -chdir=infra/downloads apply -var github_repo=<owner>/<repo>
 
 terraform {
   required_version = ">= 1.6"
+  # State in the private GCS bucket (deploy.md step 1), prefix "downloads".
+  backend "gcs" {}
   required_providers {
     google = {
       source  = "hashicorp/google"

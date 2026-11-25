@@ -5,7 +5,7 @@ Workflow: `.github/workflows/release.yml`. Hosting: `infra/downloads/`.
 
 ## One-time setup
 
-1. **Hosting.** `terraform -chdir=infra/downloads init` then
+1. **Hosting.** `terraform -chdir=infra/downloads init -backend-config="bucket=sayvox-app-2026-tfstate" -backend-config="prefix=downloads"` (state bucket: deploy.md step 1) then
    `terraform -chdir=infra/downloads apply -var github_repo=<owner>/<repo>`. Copy the
    `github_vars` output into GitHub → Settings → Variables (`RELEASE_BUCKET`,
    `GCP_WIF_PROVIDER`, `GCP_RELEASE_SERVICE_ACCOUNT`). Also set `API_BASE_URL` and

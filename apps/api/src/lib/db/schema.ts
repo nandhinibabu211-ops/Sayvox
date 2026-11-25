@@ -58,7 +58,8 @@ export const plans = pgTable("plans", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
+  /** Contact only, not an identity: users are keyed by auth_provider_id (Identity Platform uid). */
+  email: text("email").notNull(),
   authProviderId: text("auth_provider_id").notNull().unique(),
   planId: text("plan_id")
     .notNull()
@@ -159,6 +160,8 @@ export const sessions = pgTable(
     totalMs: integer("total_ms"),
     sttCommitMs: integer("stt_commit_ms"),
     releaseToInsertMs: integer("release_to_insert_ms"),
+    /** When the /v1/stream proxy charged this session's metered audio (once). */
+    meteredAt: ts("metered_at"),
     status: sessionStatus("status").notNull().default("started"),
     clientVersion: text("client_version"),
     region: text("region"),

@@ -9,7 +9,7 @@ import { ScribeError } from "./scribeClient";
 
 const SESSION: SessionStartResponse = {
   sessionId: "3f1c2a4e-8b7d-4c1a-9e2f-1a2b3c4d5e6f",
-  scribeToken: "sutkn_1",
+  streamTicket: "t".repeat(43),
   expiresAt: "2026-11-25T10:15:00Z",
   keyterms: ["Zoho"],
   languageHint: null,
