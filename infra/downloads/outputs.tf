@@ -1,6 +1,6 @@
 output "download_base_url" {
   description = "Base URL for installers and the update manifest."
-  value = var.cdn_domain != "" ? "https://${var.cdn_domain}" : "https://storage.googleapis.com/${google_storage_bucket.releases.name}"
+  value       = var.cdn_domain != "" ? "https://${var.cdn_domain}" : "https://storage.googleapis.com/${google_storage_bucket.releases.name}"
 }
 
 output "cdn_ip" {

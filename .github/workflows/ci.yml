@@ -56,6 +56,7 @@ jobs:
     name: Terraform fmt + validate
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         root: [infra/terraform, infra/observability, infra/downloads]
     steps:
