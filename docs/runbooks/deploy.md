@@ -46,6 +46,44 @@ observability.
 8. **Desktop**: set the desktop build's `API_BASE_URL` (release.md) to the prod `api_url`.
 9. Set the provider spend caps (kill-switch.md "Cost").
 
+## Staging as built (2026-11-25): cheap, serverless shape
+
+Owner decision: staging must be cheap. `staging.tfvars` uses `region = us-west1`,
+`database = alloydb_express`, `redis = vm`, `provider_keys_ready = false`. Cost is roughly
+US$7–10/month (mostly the PSC endpoint); AlloyDB Express compute is free while paused and
+50 compute-hours/month are free for 12 months.
+
+| Piece | What | Notes |
+| --- | --- | --- |
+| Database | AlloyDB Express `sayvox-staging` / instance `primary` (PostgreSQL 18) | preview, no SLA, **no backups**; pauses after ~15 min idle, wakes in ~20 s (API connect timeout 30 s) |
+| DB access | PSC endpoint `sayvox-staging-alloydb` (10.20.0.3) | Express has no VPC peering |
+| Redis | `sayvox-staging-redis` e2-micro VM (free tier), Container-Optimized OS, no external IP | in-memory only; a VM restart empties it (quotas rebuild from Postgres) |
+| API | Cloud Run `sayvox-staging-api`, min 0, max 2 | `/health` from outside (Cloud Run's frontend reserves `/healthz`) |
+
+How it was created (repeat in this order for a rebuild):
+
+1. State bucket and `infra/downloads` (one-time setup steps 1–2).
+2. `terraform apply` with targets for the network, Redis VM, secrets, registry and IAM
+   (Cloud Run needs the secrets to have versions first).
+3. AlloyDB Express. `gcloud` 594+ supports it:
+   `gcloud beta alloydb clusters create sayvox-staging --region=us-west1 --enable-express --password=...`
+   then `gcloud beta alloydb instances create primary --cluster=sayvox-staging --region=us-west1 --instance-type=PRIMARY --cpu-count=1 --allowed-psc-projects=sayvox-app-2026`.
+   Older gcloud: the same through the REST API (`v1beta`, `expressConfig.enabled: true`).
+   The password is `terraform output -raw db_password` (meets AlloyDB's complexity policy;
+   never print it).
+4. Put the instance's `pscInstanceConfig.serviceAttachmentLink` (as `projects/...`) into
+   `alloydb_psc_attachment`, then `terraform apply` again: PSC endpoint + `DATABASE_URL`.
+5. Build the image with Cloud Build, full `terraform apply -var initial_image=<image>`,
+   `gcloud run jobs execute sayvox-staging-migrate --wait`, smoke test.
+
+**Still to do for staging:**
+- Provider keys (owner, later): add versions to `sayvox-staging-elevenlabs-api-key` and
+  `sayvox-staging-openrouter-api-key`, set `provider_keys_ready = true`, apply. Until then
+  `/v1/session/start` answers 503 `PROVIDER_UNAVAILABLE` and rewrites fail over to raw text.
+- GitHub `staging` environment variables are set. `DEPLOY_ENABLED` is **not** set: the
+  workflow's prod job must have a `production` environment with required reviewers first.
+- Observability (`infra/observability`) needs an alert email.
+
 ## Every deploy
 
 Merging to `main` with API changes runs deploy.yml:
