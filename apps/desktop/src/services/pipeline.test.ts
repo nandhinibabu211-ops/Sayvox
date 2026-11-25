@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
 import { DictationPipeline, type InsertOutcome, type ScribeLike } from "./pipeline";
+import { RewriteFailed, type RewriteDone } from "./rewriteClient";
 import { ScribeError } from "./scribeClient";
 
 const SESSION: SessionStartResponse = {
@@ -19,6 +20,7 @@ function harness(
     transcript?: string | Error;
     insert?: InsertOutcome;
     takeSession?: () => Promise<SessionStartResponse>;
+    rewrite?: (req: unknown, onToken: (soFar: string) => void) => Promise<RewriteDone>;
   } = {},
 ) {
   const states: OverlayState[] = [];
@@ -52,6 +54,7 @@ function harness(
     },
     onState: (s) => states.push(s),
     clientVersion: "0.1.0",
+    ...(opts.rewrite ? { rewrite: opts.rewrite } : {}),
     schedule: (fn) => fn(),
   });
   return { p, states, ends, sent, scribe, insert, setClock: (t: number) => (clock = t) };
@@ -157,5 +160,92 @@ describe("DictationPipeline (US1)", () => {
     expect(h.states).toContainEqual(
       expect.objectContaining({ kind: "error", action: "openMicSettings" }),
     );
+  });
+
+  describe("AI modes (US2)", () => {
+    const done = (text: string): RewriteDone => ({
+      text,
+      model: "anthropic/claude-haiku-5.5",
+      ttftMs: 400,
+      totalMs: 900,
+      fallbackUsed: false,
+    });
+
+    it("prompt mode in Cursor streams the rewrite, pastes it, and reports mode + app", async () => {
+      const seenReq: unknown[] = [];
+      const h = harness({
+        transcript: "um fix the login bug in auth dot ts",
+        rewrite: async (req, onToken) => {
+          seenReq.push(req);
+          onToken("Goal: ");
+          onToken("Goal: Fix the login bug in `auth.ts`.");
+          return done("Goal: Fix the login bug in `auth.ts`.");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      expect(h.states[0]).toEqual({ kind: "listening", partial: "", mode: "prompt" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 2 });
+      await tick();
+
+      expect(seenReq[0]).toMatchObject({
+        transcript: "um fix the login bug in auth dot ts",
+        mode: "prompt",
+        targetApp: "cursor.exe",
+      });
+      expect(
+        h.states.filter((s) => s.kind === "rewriting").map((s) => (s as { text: string }).text),
+      ).toEqual(["", "Goal: ", "Goal: Fix the login bug in `auth.ts`."]);
+      expect(h.insert).toHaveBeenCalledWith("Goal: Fix the login bug in `auth.ts`.");
+      expect(h.ends[0]).toMatchObject({
+        insertResult: "inserted",
+        mode: "prompt",
+        targetApp: "cursor.exe",
+      });
+    });
+
+    it("pastes the cleaned raw transcript when the rewrite fails, and says so (T055)", async () => {
+      const h = harness({
+        transcript: "um tell priya the invoice is late",
+        rewrite: async () => {
+          throw new RewriteFailed("provider");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "web:gmail" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 2 });
+      await tick();
+      expect(h.insert).toHaveBeenCalledWith("Tell priya the invoice is late.");
+      expect(h.states).toContainEqual(
+        expect.objectContaining({ kind: "inserted", notice: expect.any(String) }),
+      );
+      expect(h.ends[0]).toMatchObject({ insertResult: "raw_fallback", mode: "email" });
+    });
+
+    it("dictation mode never calls the rewrite", async () => {
+      const rewrite = vi.fn(async () => done("x"));
+      const h = harness({ rewrite });
+      await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(rewrite).not.toHaveBeenCalled();
+      expect(h.insert).toHaveBeenCalledWith("So let's meet on Friday.");
+    });
+
+    it("the badge cycles the mode for this press only", async () => {
+      const rewrite = vi.fn(async () => done("Goal: meet Friday."));
+      const h = harness({ rewrite });
+      await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe" });
+      h.p.cycleMode(); // dictation -> prompt
+      expect(h.states.at(-1)).toMatchObject({ kind: "listening", mode: "prompt" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(rewrite).toHaveBeenCalled();
+      await h.p.onEvent({ kind: "press", t: 1_000, app: "notepad.exe" });
+      expect(h.states.at(-1)).toMatchObject({ kind: "listening", mode: "dictation" });
+    });
+
+    it("an empty rewrite falls back to the cleaned transcript", async () => {
+      const h = harness({ rewrite: async () => done("") });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(h.insert).toHaveBeenCalledWith("So let's meet on Friday.");
+    });
   });
 });

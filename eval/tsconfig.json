@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["timing"]
+  "include": ["timing", "dataset", "scorer", "run.ts"]
 }

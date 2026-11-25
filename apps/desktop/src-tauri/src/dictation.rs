@@ -25,9 +25,11 @@ pub const MAX_SESSION_SECONDS: u32 = 300;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DictationEvent {
-    /// Chord pressed; mic is starting. `t` = ms since app start (monotonic).
+    /// Chord pressed; mic is starting. `t` = ms since app start (monotonic). `app` = app id
+    /// of the window being dictated into (exe name or `web:*`; never the window title).
     Press {
         t: u64,
+        app: String,
     },
     /// Held long enough; mic stopped. Every chunk of this hold was sent before this event.
     #[serde(rename_all = "camelCase")]
@@ -100,8 +102,10 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
         match ev {
             HotkeyEvent::Press => {
                 state.audio.begin();
+                // Read the target app before the overlay appears.
+                let target = crate::active_app::foreground_app_id();
                 overlay::show(&app);
-                send(DictationEvent::Press { t });
+                send(DictationEvent::Press { t, app: target });
                 // Auto-release after MAX_SESSION_SECONDS unless this hold already ended.
                 let my_gen = generation.fetch_add(1, Ordering::SeqCst) + 1;
                 let (app2, gen2) = (app.clone(), generation.clone());

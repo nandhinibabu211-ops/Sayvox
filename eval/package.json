@@ -7,9 +7,14 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "timing:report": "tsx timing/report.ts"
+    "timing:report": "tsx timing/report.ts",
+    "quality": "tsx run.ts"
   },
   "devDependencies": {
     "tsx": "4.23.15"
+  },
+  "dependencies": {
+    "@sayvox/prompts": "workspace:*",
+    "@sayvox/shared": "workspace:*"
   }
 }

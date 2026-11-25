@@ -74,27 +74,27 @@ Tests are written first and must fail before implementation (Constitution V).
 **Independent Test**: 10 requests in Cursor; structured, faithful, ≤ 3 s p95.
 
 ### Tests (write first)
-- [ ] T041 [P] [US2] Mock OpenRouter SSE server (normal, 5xx, slow TTFT, cut stream) — `apps/api/test/mocks/openrouter.ts`
-- [ ] T042 [P] [US2] Contract test `/v1/rewrite` events per `rewrite-sse.md` — `apps/api/test/contract/rewrite.test.ts`
-- [ ] T043 [P] [US2] Fallback-on-TTFT unit test — `apps/api/test/unit/rewrite-fallback.test.ts`
-- [ ] T044 [P] [US2] Log redaction test (no transcript in logs) — `apps/api/test/unit/redaction.test.ts`
-- [ ] T045 [P] [US2] Mode resolver unit tests — `apps/desktop/src/services/modeResolver.test.ts`
+- [x] T041 [P] [US2] Mock OpenRouter SSE server (normal, 5xx, slow TTFT, cut stream) — `apps/api/test/mocks/openrouter.ts`
+- [x] T042 [P] [US2] Contract test `/v1/rewrite` events per `rewrite-sse.md` — `apps/api/test/contract/rewrite.test.ts`
+- [x] T043 [P] [US2] Fallback-on-TTFT unit test — `apps/api/test/unit/rewrite-fallback.test.ts`
+- [x] T044 [P] [US2] Log redaction test (no transcript in logs) — `apps/api/test/unit/redaction.test.ts`
+- [x] T045 [P] [US2] Mode resolver unit tests — `apps/desktop/src/services/modeResolver.test.ts`
 
 ### Implementation
-- [ ] T046 [P] [US2] Prompt template: `prompt.md` + shared rules — `packages/prompts/src/`
-- [ ] T047 [P] [US2] Dictation template (minimal LLM pass) — `packages/prompts/src/dictation.md`
-- [ ] T048 [US2] OpenRouter streaming client, keep-alive pool, per-attempt 1.5 s TTFT deadline — `apps/api/src/lib/openrouter/`
-- [ ] T049 [US2] Startup validation of model slugs vs OpenRouter `/models` — `apps/api/src/modules/config/validateSlugs.ts`
-- [ ] T050 [US2] `POST /v1/rewrite` SSE (meta/token/fallback/done/error, abort on disconnect) — `apps/api/src/modules/rewrite/`
-- [ ] T051 [P] [US2] Active-app detection (Windows) — `src-tauri/src/active_app/windows.rs`
-- [ ] T052 [US2] Mode resolver + built-in app map — `apps/desktop/src/services/modeResolver.ts`
-- [ ] T053 [US2] Rewrite SSE client with timers — `apps/desktop/src/services/rewriteClient.ts`
-- [ ] T054 [US2] Overlay Rewriting state with streamed tokens + mode badge — `apps/desktop/src/overlay/`
-- [ ] T055 [US2] Raw-transcript fallback path — `apps/desktop/src/services/pipeline.ts`
-- [ ] T056 [US2] Eval dataset (30+ incl. Indian English, Hinglish, injection) + Lemon baseline — `eval/dataset/`
-- [ ] T057 [US2] Quality scorer (rules + LLM judge) — `eval/scorer/`
-- [ ] T058 [US2] Balanced-model timing/quality run → ADR-002 — `docs/adr/ADR-002-balanced-model.md`
-- [ ] T059 [US2] CI eval gate on `packages/prompts/**` and preset config changes — `.github/workflows/eval.yml`
+- [x] T046 [P] [US2] Prompt template: `prompt.md` + shared rules — `packages/prompts/src/`
+- [x] T047 [P] [US2] Dictation template (minimal LLM pass) — `packages/prompts/src/dictation.md`
+- [x] T048 [US2] OpenRouter streaming client, keep-alive pool, per-attempt 1.5 s TTFT deadline — `apps/api/src/lib/openrouter/`
+- [x] T049 [US2] Startup validation of model slugs vs OpenRouter `/models` — `apps/api/src/modules/config/validateSlugs.ts`
+- [x] T050 [US2] `POST /v1/rewrite` SSE (meta/token/fallback/done/error, abort on disconnect) — `apps/api/src/modules/rewrite/`
+- [x] T051 [P] [US2] Active-app detection (Windows) — `src-tauri/src/active_app/windows.rs`
+- [x] T052 [US2] Mode resolver + built-in app map — `apps/desktop/src/services/modeResolver.ts`
+- [x] T053 [US2] Rewrite SSE client with timers — `apps/desktop/src/services/rewriteClient.ts`
+- [x] T054 [US2] Overlay Rewriting state with streamed tokens + mode badge — `apps/desktop/src/overlay/`
+- [x] T055 [US2] Raw-transcript fallback path — `apps/desktop/src/services/pipeline.ts`
+- [ ] T056 [US2] Eval dataset (30+ incl. Indian English, Hinglish, injection) + Lemon baseline — `eval/dataset/` *(partial: 32 synthetic text cases done; recorded dictations + Lemon baseline need the owner)*
+- [x] T057 [US2] Quality scorer (rules + LLM judge) — `eval/scorer/`
+- [ ] T058 [US2] Balanced-model timing/quality run → ADR-002 — `docs/adr/ADR-002-balanced-model.md` *(tooling ready; run needs an OpenRouter key)*
+- [x] T059 [US2] CI eval gate on `packages/prompts/**` and preset config changes — `.github/workflows/eval.yml`
 
 **Checkpoint**: US1 + US2 — Phase 2 gate (prompt p95 < 3 s, quality ≥ Lemon).
 

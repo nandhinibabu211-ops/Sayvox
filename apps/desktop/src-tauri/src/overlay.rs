@@ -85,3 +85,13 @@ pub fn hide(app: &AppHandle) {
 pub fn overlay_hide(app: AppHandle) {
     hide(&app);
 }
+
+/// Grow/shrink the notch for streamed text (front-end spec §4: 64–240 px tall).
+#[tauri::command]
+pub fn overlay_resize(app: AppHandle, height: f64) {
+    if let Some(w) = window(&app) {
+        let h = height.clamp(64.0, 240.0);
+        let _ = w.set_size(tauri::LogicalSize::new(420.0, h));
+        place_top_center(&w);
+    }
+}

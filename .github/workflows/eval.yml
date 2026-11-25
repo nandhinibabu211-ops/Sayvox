@@ -1,0 +1,66 @@
+name: Eval gate
+
+# Story 4.5 / T059: prompt templates, model presets and the eval itself can't change
+# without passing the eval (Constitution V).
+on:
+  pull_request:
+    paths:
+      - "packages/prompts/**"
+      - "apps/api/src/config/env.ts"
+      - "apps/api/src/modules/config/**"
+      - "apps/api/src/modules/rewrite/**"
+      - "apps/api/src/lib/openrouter/**"
+      - "eval/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline:
+    name: Eval rules, judge plumbing and dataset checks (no API calls)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sayvox/eval test
+      - run: pnpm --filter @sayvox/prompts test
+
+  live:
+    name: Live quality gate (OpenRouter)
+    runs-on: ubuntu-latest
+    needs: offline
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_EVAL_KEY }}
+    steps:
+      - name: Skip when no eval key is configured
+        if: env.OPENROUTER_API_KEY == ''
+        run: echo "::notice::Live eval skipped — add the OPENROUTER_EVAL_KEY repository secret (low credit limit) to enable it."
+      - uses: actions/checkout@v4
+        if: env.OPENROUTER_API_KEY != ''
+      - uses: pnpm/action-setup@v4
+        if: env.OPENROUTER_API_KEY != ''
+      - uses: actions/setup-node@v4
+        if: env.OPENROUTER_API_KEY != ''
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: env.OPENROUTER_API_KEY != ''
+        run: pnpm install --frozen-lockfile
+      - name: Run eval (all Balanced-preset models, with judge)
+        if: env.OPENROUTER_API_KEY != ''
+        run: pnpm --filter @sayvox/eval quality --models anthropic/claude-haiku-5.5,openai/gpt-6-luna,google/gemini-3.5-flash-lite --judge
+      - name: Upload results
+        if: always() && env.OPENROUTER_API_KEY != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval/results/quality-*.json

@@ -2,12 +2,17 @@
  * Overlay states (front-end spec §3.2, T038). Pure data; the view renders whatever state
  * the pipeline reports.
  */
+import type { Mode } from "@sayvox/shared";
+
 export type OverlayState =
   | { kind: "hidden" }
-  | { kind: "listening"; partial: string }
-  | { kind: "transcribing"; partial: string }
+  | { kind: "listening"; partial: string; mode?: Mode }
+  | { kind: "transcribing"; partial: string; mode?: Mode }
+  /** Streaming an AI rewrite (prompt / email mode, T054). */
+  | { kind: "rewriting"; text: string; mode: Mode }
   | { kind: "inserting"; text: string }
-  | { kind: "inserted"; text: string }
+  /** `notice` set when the raw transcript was pasted because the rewrite failed (T055). */
+  | { kind: "inserted"; text: string; notice?: string }
   /** Paste impossible (elevated target): keep the text so the user can copy it. */
   | { kind: "blocked"; text: string }
   | { kind: "error"; message: string; action?: "openMicSettings" | "signIn" | "upgrade" };

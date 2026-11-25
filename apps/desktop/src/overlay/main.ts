@@ -4,6 +4,7 @@ import type { SessionStartResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
 import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
 import { CLIENT_VERSION, createApiClient } from "../services/runtime";
+import { streamRewrite } from "../services/rewriteClient";
 import { ScribeSession } from "../services/scribeClient";
 import { credentialSessionStore } from "../services/session";
 import { TokenCache } from "../services/tokenCache";
@@ -24,6 +25,8 @@ const root = $<HTMLDivElement>("#overlay");
 const label = $<HTMLSpanElement>("#label");
 const text = $<HTMLParagraphElement>("#text");
 const action = $<HTMLButtonElement>("#action");
+const badge = $<HTMLButtonElement>("#mode");
+const MODE_LABELS = { dictation: "Dictation", prompt: "Prompt", email: "Email" } as const;
 let onAction: (() => void) | undefined;
 let lastText = "";
 
@@ -31,30 +34,60 @@ const LABELS: Record<OverlayState["kind"], string> = {
   hidden: "",
   listening: "Listening",
   transcribing: "Transcribing",
+  rewriting: "Writing",
   inserting: "Inserting",
   inserted: "Inserted",
   blocked: "Can't paste here",
   error: "Error",
 };
 
+let lastHeight = 64;
+/** Grow the notch for longer text (64–240 px), without jumping on every token. */
+function fit(): void {
+  const wanted =
+    text.textContent && text.textContent.length > 60
+      ? Math.min(240, 64 + Math.ceil(text.textContent.length / 55) * 18)
+      : 64;
+  if (Math.abs(wanted - lastHeight) >= 18 || wanted === 64) {
+    if (wanted !== lastHeight) void invoke("overlay_resize", { height: wanted });
+    lastHeight = wanted;
+  }
+  root.classList.toggle("tall", wanted > 64);
+}
+
 function render(s: OverlayState): void {
   root.dataset["state"] = s.kind;
   label.textContent = LABELS[s.kind];
   action.hidden = true;
   onAction = undefined;
+  const mode = "mode" in s ? s.mode : undefined;
+  badge.hidden = !mode;
+  if (mode) badge.textContent = MODE_LABELS[mode];
 
   switch (s.kind) {
     case "hidden":
+      text.textContent = "";
+      fit();
       void invoke("overlay_hide");
       return;
     case "listening":
     case "transcribing":
       // Live partials: shown, never logged or stored.
       text.textContent = s.partial;
+      fit();
+      return;
+    case "rewriting":
+      // Streamed rewrite tokens: shown, never logged or stored.
+      text.textContent = s.text;
+      fit();
       return;
     case "inserting":
-    case "inserted":
       text.textContent = s.text;
+      fit();
+      return;
+    case "inserted":
+      text.textContent = s.notice ?? s.text;
+      fit();
       return;
     case "blocked":
       lastText = s.text;
@@ -86,6 +119,7 @@ function render(s: OverlayState): void {
 }
 
 action.addEventListener("click", () => onAction?.());
+badge.addEventListener("click", () => pipeline.cycleMode());
 
 const pipeline = new DictationPipeline({
   takeSession: () => tokens.take(),
@@ -96,6 +130,7 @@ const pipeline = new DictationPipeline({
     api.json(`/v1/session/${id}/end`, { method: "POST", body: JSON.stringify(body) }),
   onState: render,
   clientVersion: CLIENT_VERSION,
+  rewrite: (req, onToken) => streamRewrite(api, req, (_t, soFar) => onToken(soFar)),
   recordTiming: (record) => void invoke("timing_append", { record }).catch(() => {}),
 });
 

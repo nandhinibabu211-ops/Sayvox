@@ -1,14 +1,16 @@
-import type { SessionEndRequest, SessionStartResponse } from "@sayvox/shared";
+import type { Mode, RewriteRequest, SessionEndRequest, SessionStartResponse } from "@sayvox/shared";
 import { errorFor, type OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
 import { cleanup } from "./cleanup";
+import { DEFAULT_PREFS, nextMode, resolveMode, type ModePrefs } from "./modeResolver";
+import type { RewriteDone } from "./rewriteClient";
 import type { CommitResult, ScribeOptions } from "./scribeClient";
 import { ScribeError } from "./scribeClient";
 import { SessionExpiredError } from "./session";
 
 /** Messages from Rust over the dictation channel (src-tauri/src/dictation.rs). */
 export type DictationEvent =
-  | { kind: "press"; t: number }
+  | { kind: "press"; t: number; app?: string }
   | { kind: "release"; t: number; audioSeconds: number }
   | { kind: "cancel"; t: number }
   | { kind: "audioError"; code: string };
@@ -31,6 +33,10 @@ export interface PipelineDeps {
   endSession: (sessionId: string, body: SessionEndRequest) => Promise<void>;
   onState: (s: OverlayState) => void;
   clientVersion: string;
+  /** Stream an AI rewrite (prompt / email modes). Rejects on any failure. */
+  rewrite?: (req: RewriteRequest, onToken: (soFar: string) => void) => Promise<RewriteDone>;
+  /** User's default mode and per-app overrides (Settings → Modes, Story 2.6). */
+  modePrefs?: () => ModePrefs;
   /** Local timing log for the Phase 1 gate (debug builds); numbers only. */
   recordTiming?: (r: {
     releaseToInsertMs: number;
@@ -48,6 +54,8 @@ interface Active {
   pending: ArrayBuffer[];
   partial: string;
   ended: boolean;
+  app: string;
+  mode: Mode;
 }
 
 function errorCode(err: unknown): string {
@@ -90,7 +98,7 @@ export class DictationPipeline {
   async onEvent(ev: DictationEvent): Promise<void> {
     switch (ev.kind) {
       case "press":
-        return this.press();
+        return this.press(ev.app ?? "unknown");
       case "release":
         return this.release(ev.t, ev.audioSeconds);
       case "cancel":
@@ -102,14 +110,25 @@ export class DictationPipeline {
     }
   }
 
-  private press(): void {
+  /** Overlay badge click: switch mode for the current press only (Story 3.4 AC 3). */
+  cycleMode(): void {
+    const a = this.active;
+    if (!a || a.ended) return;
+    a.mode = nextMode(a.mode);
+    this.show({ kind: "listening", partial: a.partial, mode: a.mode });
+  }
+
+  private press(app: string): void {
     if (this.active && !this.active.ended) this.cancel();
     const session = this.deps.takeSession();
+    const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
     const a: Active = {
       session,
       pending: [],
       partial: "",
       ended: false,
+      app,
+      mode,
       scribe: session.then((s) => {
         const scribe = this.deps.newScribe({
           token: s.scribeToken,
@@ -119,7 +138,7 @@ export class DictationPipeline {
           onPartial: (text) => {
             if (this.active !== a || a.ended) return;
             a.partial = text;
-            this.show({ kind: "listening", partial: text });
+            this.show({ kind: "listening", partial: text, mode: a.mode });
           },
         });
         scribe.start();
@@ -127,7 +146,7 @@ export class DictationPipeline {
       }),
     };
     this.active = a;
-    this.show({ kind: "listening", partial: "" });
+    this.show({ kind: "listening", partial: "", mode });
     a.scribe.catch((err: unknown) => {
       if (this.active === a && !a.ended) {
         a.ended = true;
@@ -140,7 +159,7 @@ export class DictationPipeline {
     const a = this.active;
     if (!a || a.ended) return;
     a.ended = true;
-    this.show({ kind: "transcribing", partial: a.partial });
+    this.show({ kind: "transcribing", partial: a.partial, mode: a.mode });
 
     let session: SessionStartResponse;
     let result: CommitResult;
@@ -152,15 +171,32 @@ export class DictationPipeline {
     } catch (err) {
       this.fail(errorFor(errorCode(err)));
       const s = await a.session.catch(() => undefined);
-      if (s) void this.end(s.sessionId, audioSeconds, "failed", 0, 0);
+      if (s) void this.end(a, s.sessionId, audioSeconds, "failed", 0, 0);
       return;
     }
 
-    const text = cleanup(result.text, session.keyterms);
-    if (!text) {
+    // Local cleanup is both the dictation result and the raw fallback for AI modes.
+    const cleaned = cleanup(result.text, session.keyterms);
+    if (!cleaned) {
       this.show({ kind: "hidden" });
-      void this.end(session.sessionId, audioSeconds, "discarded", result.commitMs, 0);
+      void this.end(a, session.sessionId, audioSeconds, "discarded", result.commitMs, 0);
       return;
+    }
+
+    let text = cleaned;
+    let notice: string | undefined;
+    if (a.mode !== "dictation" && this.deps.rewrite) {
+      this.show({ kind: "rewriting", text: "", mode: a.mode });
+      try {
+        const done = await this.deps.rewrite(
+          { sessionId: session.sessionId, transcript: result.text, mode: a.mode, targetApp: a.app },
+          (soFar) => this.show({ kind: "rewriting", text: soFar, mode: a.mode }),
+        );
+        if (done.text) text = done.text;
+      } catch {
+        // Never lose the words: paste the cleaned transcript instead (T055).
+        notice = "Inserted your original text; AI rewrite was unavailable.";
+      }
     }
 
     this.show({ kind: "inserting", text });
@@ -170,19 +206,27 @@ export class DictationPipeline {
     const releaseToInsertMs = Math.max(0, Math.round((await this.deps.now()) - releaseT));
 
     if (outcome === "inserted") {
-      this.show({ kind: "inserted", text });
-      this.schedule(() => this.show({ kind: "hidden" }), 800);
+      this.show(notice ? { kind: "inserted", text, notice } : { kind: "inserted", text });
+      this.schedule(() => this.show({ kind: "hidden" }), notice ? 2_500 : 800);
       void this.end(
+        a,
         session.sessionId,
         audioSeconds,
-        "inserted",
+        notice ? "raw_fallback" : "inserted",
         result.commitMs,
         releaseToInsertMs,
       );
     } else {
       // Paste impossible or failed: keep the words on screen with a Copy button.
       this.show({ kind: "blocked", text });
-      void this.end(session.sessionId, audioSeconds, "failed", result.commitMs, releaseToInsertMs);
+      void this.end(
+        a,
+        session.sessionId,
+        audioSeconds,
+        "failed",
+        result.commitMs,
+        releaseToInsertMs,
+      );
     }
   }
 
@@ -192,7 +236,7 @@ export class DictationPipeline {
     a.ended = true;
     void a.scribe.then((s) => s.abort()).catch(() => {});
     this.show({ kind: "hidden" });
-    void a.session.then((s) => this.end(s.sessionId, 0, "discarded", 0, 0)).catch(() => {});
+    void a.session.then((s) => this.end(a, s.sessionId, 0, "discarded", 0, 0)).catch(() => {});
   }
 
   private fail(state: Extract<OverlayState, { kind: "error" }>): void {
@@ -201,6 +245,7 @@ export class DictationPipeline {
   }
 
   private end(
+    a: Active,
     sessionId: string,
     audioSeconds: number,
     insertResult: SessionEndRequest["insertResult"],
@@ -223,7 +268,8 @@ export class DictationPipeline {
       .endSession(sessionId, {
         audioSeconds,
         insertResult,
-        mode: "dictation",
+        mode: a.mode,
+        targetApp: a.app,
         timings: { sttCommitMs, releaseToInsertMs },
         clientVersion: this.deps.clientVersion,
       })

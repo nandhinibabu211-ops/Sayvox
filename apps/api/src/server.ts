@@ -9,6 +9,10 @@ import { createUserResolver } from "./modules/auth/users";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
+import { closePool, pooledFetch } from "./lib/openrouter/pool";
+import { createOpenRouterClient } from "./lib/openrouter/stream";
+import { createDbRewriteStore } from "./modules/rewrite/store";
+import { validateSlugs, type ModelPrice } from "./modules/config/validateSlugs";
 
 const env = loadEnv();
 const logger = createLogger({ level: env.LOG_LEVEL });
@@ -31,6 +35,19 @@ await redis.connect();
 
 const config = new ConfigService(env, redis);
 
+// T049: check preset slugs against OpenRouter, load prices, warm the keep-alive pool.
+let prices = new Map<string, ModelPrice>();
+const presetSlugs = Object.values(await config.presets()).flat();
+await validateSlugs(presetSlugs, pooledFetch)
+  .then((check) => {
+    prices = check.prices;
+    if (check.missing.length)
+      logger.warn({ missing: check.missing }, "preset models not on OpenRouter");
+  })
+  .catch((err: unknown) =>
+    logger.warn({ errName: (err as Error).name }, "model list check failed"),
+  );
+
 const app = buildApp({
   logger,
   auth: {
@@ -47,6 +64,12 @@ const app = buildApp({
     region: env.REGION,
     mintToken: createScribeTokenMinter({ apiKey: env.ELEVENLABS_API_KEY }),
   },
+  rewrite: {
+    store: createDbRewriteStore(database.db),
+    config,
+    complete: createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch }),
+    prices: () => prices,
+  },
 });
 
 const stopSweeper = startSweeper(database.db, (err) =>
@@ -57,7 +80,7 @@ const shutdown = async (signal: string): Promise<void> => {
   app.log.info({ signal }, "shutting down");
   stopSweeper();
   await app.close();
-  await Promise.allSettled([database.close(), redis.quit(), telemetry.shutdown()]);
+  await Promise.allSettled([database.close(), redis.quit(), telemetry.shutdown(), closePool()]);
   process.exit(0);
 };
 process.on("SIGINT", () => void shutdown("SIGINT"));

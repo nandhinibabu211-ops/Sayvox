@@ -5,6 +5,7 @@
 //!   `dictation`: wires them together and talks to the web side.
 //! - `credentials` + `auth*`: Windows Credential Manager and the loopback sign-in callback.
 
+mod active_app;
 mod audio;
 mod auth;
 mod auth_callback;
@@ -113,6 +114,7 @@ pub fn run() {
             dictation::copy_text,
             dictation::timing_append,
             overlay::overlay_hide,
+            overlay::overlay_resize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sayvox");

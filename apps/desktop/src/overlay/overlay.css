@@ -31,7 +31,7 @@ body {
   margin: 0 auto;
   padding: 10px 14px;
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  grid-template-columns: auto auto auto 1fr auto;
   align-items: center;
   gap: 8px;
   border-radius: 14px;
@@ -100,4 +100,32 @@ body {
   [data-state="listening"] .dot {
     animation: none;
   }
+}
+
+.badge {
+  padding: 2px 8px;
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+[data-state="rewriting"] .dot {
+  background: var(--busy);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* Taller notch: wrap text instead of a single ellipsised line. */
+#overlay.tall {
+  height: 100vh;
+  align-items: start;
+}
+#overlay.tall #text {
+  white-space: pre-wrap;
+  direction: ltr;
+  overflow-y: auto;
+  max-height: calc(100vh - 24px);
 }
