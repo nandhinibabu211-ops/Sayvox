@@ -90,8 +90,9 @@ How it was created (repeat in this order for a rebuild):
   origin = the web origin, redirect URI = `https://sayvox-app-2026.firebaseapp.com/__/auth/handler`),
   then Identity Platform → Providers → Google with that client. Rebuild the web image with
   `--build-arg VITE_GOOGLE_SIGNIN=true`.
-- The project also holds a "Browser key (auto created by Firebase)" with about 30 APIs. Sayvox
-  doesn't use it; restrict or delete it (owner decision).
+- The unused "Browser key (auto created by Firebase)" (about 30 APIs) was deleted on
+  2026-11-26 at the owner's request; restorable until 2026-12-26 with
+  `gcloud services api-keys undelete`.
 
 **Still to do for staging:**
 - Provider keys (owner, later): add versions to `sayvox-staging-elevenlabs-api-key` and
