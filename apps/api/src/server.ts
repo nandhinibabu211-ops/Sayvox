@@ -37,7 +37,7 @@ const telemetry = startTelemetry({
   traceSampleRatio: env.OTEL_TRACE_SAMPLE_RATIO,
 });
 
-const database = createDb(env.DATABASE_URL, env.DB_POOL_MAX);
+const database = createDb(env.DATABASE_URL, env.DB_POOL_MAX, env.DB_CONNECT_TIMEOUT_MS);
 const redis = createRedis(env.REDIS_URL);
 await redis.connect();
 

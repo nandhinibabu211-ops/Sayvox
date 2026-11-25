@@ -40,6 +40,38 @@ variable "max_instances" {
   default = 10
 }
 
+variable "database" {
+  description = "cloudsql (prod) or alloydb_express (cheap serverless staging, created with gcloud: deploy.md)."
+  type        = string
+  default     = "cloudsql"
+  validation {
+    condition     = contains(["cloudsql", "alloydb_express"], var.database)
+    error_message = "database must be cloudsql or alloydb_express."
+  }
+}
+
+variable "alloydb_psc_attachment" {
+  description = "Service attachment of the AlloyDB Express instance (gcloud ... instances describe). Empty until it exists."
+  type        = string
+  default     = ""
+}
+
+variable "redis" {
+  description = "memorystore (prod) or vm (free-tier e2-micro, staging only)."
+  type        = string
+  default     = "memorystore"
+  validation {
+    condition     = contains(["memorystore", "vm"], var.redis)
+    error_message = "redis must be memorystore or vm."
+  }
+}
+
+variable "db_connect_timeout_ms" {
+  description = "Postgres connect timeout. AlloyDB Express wakes from pause in ~20 s."
+  type        = number
+  default     = 5000
+}
+
 variable "db_tier" {
   type    = string
   default = "db-custom-1-3840"
@@ -56,6 +88,12 @@ variable "redis_tier" {
   default     = "BASIC"
 }
 
+variable "provider_keys_ready" {
+  description = "Mount the ElevenLabs/OpenRouter secrets. Add their versions first; false runs the API without them (dictation answers 503)."
+  type        = bool
+  default     = true
+}
+
 variable "billing_enabled" {
   description = "Mount the Razorpay secrets. Add their versions in Secret Manager first."
   type        = bool
@@ -68,10 +106,16 @@ variable "razorpay_plan_ids" {
   default     = "{}"
 }
 
-variable "otel_collector_image" {
-  description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar. Check the latest tag in the Cloud Run 'OpenTelemetry sidecar' guide before applying."
+variable "initial_image" {
+  description = "Image for the first apply only (deploy.yml manages it afterwards)."
   type        = string
-  default     = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.138.0"
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "otel_collector_image" {
+  description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar (tag checked 2026-11-25 against the public registry)."
+  type        = string
+  default     = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.165.1"
 }
 
 variable "domain" {

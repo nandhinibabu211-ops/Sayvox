@@ -7,7 +7,7 @@ refer to SECURITY_AUDIT.md.
 | --- | --- | --- | --- |
 | KI-02 | High (blocker) | Updater public key is a placeholder; no release can be built | Generate the key pair (release.md step 2) |
 | KI-03 | High (blocker) | Privacy policy and terms are drafts without legal review | Legal review, then remove the draft banner |
-| KI-04 | High (blocker) | Nothing is deployed: Cloud Run / Cloud SQL APIs disabled, no buckets, no secrets, no Identity Platform configuration verified | deploy.md one-time setup |
+| KI-04 | High (blocker) | Staging is deployed (2026-11-25, cheap shape, smoke passes) but without provider keys; prod is not created; Identity Platform not configured | Add staging keys; prod setup only with owner approval |
 | KI-05 | Medium | Pro plan price and limits are placeholders (`seed.ts`); Razorpay plan ids not created | Decide pricing; create the Razorpay plan; set `RAZORPAY_PLAN_IDS` |
 | KI-06 | Medium | `db:setup` runs on every deploy and **overwrites** plan rows from `seed.ts`, so prices changed in the database are reset | Treat `seed.ts` as the source of truth for plans (document); change plans by code |
 | KI-07 | Medium | Quality never measured: no recorded audio, no Tamil-English cases, no Lemon baseline, eval gate has never run with a key (T056, T058) | Record consented phrases; add Tamil-English cases; record Lemon outputs; run the eval |
@@ -15,12 +15,13 @@ refer to SECURITY_AUDIT.md.
 | KI-09 | Low | No `cargo audit` in CI | Add a `cargo audit` job |
 | KI-10 | Low | Moderate `pnpm audit` advisories in dev tools (esbuild via drizzle-kit, glob/minimatch via testcontainers) | Upgrade when the tools release fixes |
 | KI-11 | Low | Terraform uses Postgres 17; dev compose and integration tests use 16 | Align (move tests and compose to 17) |
-| KI-12 | Low | OTel collector image tag in Terraform unverified | Check Google's sidecar guide before the first apply |
 | KI-13 | Low | ElevenLabs usage API: STT series label unconfirmed; endpoint marked deprecated (research R11) | Check on the first reconcile run |
 | KI-14 | Low | Account deletion SCANs Redis by pattern; slow on a large keyspace | Fine at launch scale; index user keys later |
 | KI-15 | Low | Plan/suspension changes take up to 60 s (user cache) | Accepted |
 | KI-16 | Medium | Audio proxy (ADR-011) adds a network hop; latency and Cloud Run bandwidth cost not yet measured | Include in the T040 timing run and the load test |
 | KI-17 | Low | An API instance restart ends the dictations it carries (charged first); the client retries once on a new session | Accepted; Cloud Run drains on deploy |
+| KI-18 | Medium | Staging differs from prod: us-west1 (prod us-east4), AlloyDB Express preview without backups and with ~20 s wake-up, Redis on a single VM | Accepted for cost; latency and load tests must be judged with that in mind |
+| KI-19 | Low | The local gcloud (577) predates AlloyDB Express and misparsed `--container api --image ... --quiet` | Update gcloud; deploy.yml now uses `--flag=value` |
 
 ## Fixed in this audit
 

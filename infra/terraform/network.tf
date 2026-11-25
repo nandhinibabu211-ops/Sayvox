@@ -15,7 +15,9 @@ resource "google_compute_subnetwork" "run" {
   private_ip_google_access = true
 }
 
+# VPC peering for Cloud SQL / Memorystore private IPs (not needed for the lite staging shape).
 resource "google_compute_global_address" "services" {
+  count         = local.peering ? 1 : 0
   name          = "${local.name}-services"
   network       = google_compute_network.vpc.id
   purpose       = "VPC_PEERING"
@@ -24,7 +26,8 @@ resource "google_compute_global_address" "services" {
 }
 
 resource "google_service_networking_connection" "services" {
+  count                   = local.peering ? 1 : 0
   network                 = google_compute_network.vpc.id
   service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.services.name]
+  reserved_peering_ranges = [google_compute_global_address.services[0].name]
 }

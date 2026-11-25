@@ -3,7 +3,7 @@
 # The first apply uses a placeholder image until the first deploy.
 
 locals {
-  image_placeholder = "us-docker.pkg.dev/cloudrun/container/hello"
+  image_placeholder = var.initial_image
   node_env          = var.env == "prod" ? "production" : "staging"
   plain_env = {
     NODE_ENV                    = local.node_env
@@ -11,6 +11,7 @@ locals {
     REGION                      = var.region
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
     RAZORPAY_PLAN_IDS           = var.razorpay_plan_ids
+    DB_CONNECT_TIMEOUT_MS       = tostring(var.db_connect_timeout_ms)
   }
   # `cfg` is the runtime-config CLI (kill switch, rollout, min version) run inside the VPC,
   # because Memorystore has no public address. Run it with
@@ -21,6 +22,12 @@ locals {
     migrate   = ["DATABASE_URL", "REDIS_URL"]
     reconcile = ["DATABASE_URL", "ELEVENLABS_API_KEY"]
     spend     = ["DATABASE_URL"]
+  }
+  # Owner-provided secrets are mounted only once they have a version (Cloud Run refuses a
+  # revision whose secret has none): provider_keys_ready = false runs the API without them.
+  mounted_secrets = {
+    for k, v in local.all_secrets : k => v
+    if var.provider_keys_ready || !contains(keys(local.owner_secrets), k)
   }
   job_args = {
     cfg       = ["src/scripts/cfg.ts", "get"]
@@ -79,7 +86,7 @@ resource "google_cloud_run_v2_service" "api" {
         }
       }
       dynamic "env" {
-        for_each = local.all_secrets
+        for_each = local.mounted_secrets
         content {
           name = env.key
           value_source {
@@ -202,8 +209,12 @@ resource "google_cloud_run_v2_job" "job" {
           name  = "NODE_ENV"
           value = local.node_env
         }
+        env {
+          name  = "DB_CONNECT_TIMEOUT_MS"
+          value = tostring(var.db_connect_timeout_ms)
+        }
         dynamic "env" {
-          for_each = toset(local.job_secrets[each.key])
+          for_each = toset([for s in local.job_secrets[each.key] : s if contains(keys(local.mounted_secrets), s)])
           content {
             name = env.value
             value_source {

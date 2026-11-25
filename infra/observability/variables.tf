@@ -40,6 +40,12 @@ variable "budget_currency" {
   default     = "INR"
 }
 
+variable "app_metric_alerts" {
+  description = "Create alerts on the API's own metrics (latency, fallback, Scribe reconnects). Needs real traffic first."
+  type        = bool
+  default     = true
+}
+
 variable "events_retention_days" {
   description = "How long text-free product events are kept in BigQuery."
   type        = number

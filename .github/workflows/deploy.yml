@@ -29,7 +29,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGION: us-east4
   PROJECT_ID: sayvox-app-2026
 
 jobs:
@@ -39,6 +38,8 @@ jobs:
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      REGION: ${{ vars.GCP_REGION }} # us-west1 for the cheap staging shape
     outputs:
       image: ${{ steps.image.outputs.image }}
     steps:
@@ -54,7 +55,7 @@ jobs:
         id: image
         run: |
           IMAGE="${{ vars.API_REPOSITORY }}/api:${GITHUB_SHA}"
-          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          gcloud auth configure-docker "${IMAGE%%/*}" --quiet
           docker build -f apps/api/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
@@ -63,14 +64,14 @@ jobs:
         run: |
           IFS=',' read -ra JOBS <<< "${{ vars.JOBS }}"
           for j in "${JOBS[@]}"; do
-            gcloud run jobs update "$j" --region "$REGION" --image "${{ steps.image.outputs.image }}" --quiet
+            gcloud run jobs update "$j" --region="$REGION" --image="${{ steps.image.outputs.image }}" --quiet
           done
-          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region "$REGION" --wait
+          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region="$REGION" --wait
 
       - name: Deploy
         run: |
-          gcloud run services update "${{ vars.API_SERVICE }}" --region "$REGION" \
-            --container api --image "${{ steps.image.outputs.image }}" --quiet
+          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" \
+            --container=api --image="${{ steps.image.outputs.image }}" --quiet
 
       - uses: actions/setup-node@v4
         with:
@@ -87,6 +88,8 @@ jobs:
     needs: staging
     runs-on: ubuntu-latest
     environment: production # required reviewers = the manual approval gate
+    env:
+      REGION: ${{ vars.GCP_REGION }}
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +105,7 @@ jobs:
       - name: Remember the serving revision
         id: prev
         run: |
-          PREV=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" \
+          PREV=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region="$REGION" \
             --format='value(status.latestReadyRevisionName)')
           echo "revision=$PREV" >> "$GITHUB_OUTPUT"
           echo "Serving before deploy: $PREV"
@@ -113,19 +116,19 @@ jobs:
         run: |
           IFS=',' read -ra JOBS <<< "${{ vars.JOBS }}"
           for j in "${JOBS[@]}"; do
-            gcloud run jobs update "$j" --region "$REGION" --image "${{ needs.staging.outputs.image }}" --quiet
+            gcloud run jobs update "$j" --region="$REGION" --image="${{ needs.staging.outputs.image }}" --quiet
           done
-          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region "$REGION" --wait
+          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region="$REGION" --wait
 
       - name: Deploy the new revision without traffic
         id: new
         run: |
-          gcloud run services update "${{ vars.API_SERVICE }}" --region "$REGION" \
-            --container api --image "${{ needs.staging.outputs.image }}" \
+          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" \
+            --container=api --image="${{ needs.staging.outputs.image }}" \
             --no-traffic --tag candidate --quiet
-          NEW=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" \
+          NEW=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region="$REGION" \
             --format='value(status.latestCreatedRevisionName)')
-          URL=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" --format=json \
+          URL=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region="$REGION" --format=json \
             | jq -r '.status.traffic[] | select(.tag=="candidate") | .url')
           echo "revision=$NEW" >> "$GITHUB_OUTPUT"
           echo "url=$URL" >> "$GITHUB_OUTPUT"
@@ -135,7 +138,7 @@ jobs:
 
       - name: Shift traffic
         run: |
-          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region="$REGION" \
             --to-revisions "${{ steps.new.outputs.revision }}=100" --quiet
 
       - name: Watch for 10 minutes
@@ -145,11 +148,11 @@ jobs:
         if: failure() && steps.prev.outputs.revision != ''
         run: |
           echo "::error::Rolling back to ${{ steps.prev.outputs.revision }}"
-          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region="$REGION" \
             --to-revisions "${{ steps.prev.outputs.revision }}=100" --quiet
 
       - name: Drop the candidate tag
         if: always()
         run: |
-          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region="$REGION" \
             --remove-tags candidate --quiet || true

@@ -11,6 +11,7 @@ output "edge_ip" {
 output "github_vars" {
   description = "GitHub environment variables for deploy.yml (Settings -> Environments -> staging / production)."
   value = {
+    GCP_REGION                 = var.region
     GCP_WIF_PROVIDER           = "${data.google_iam_workload_identity_pool.github.name}/providers/github-oidc"
     GCP_DEPLOY_SERVICE_ACCOUNT = google_service_account.deploy.email
     API_SERVICE                = google_cloud_run_v2_service.api.name
@@ -19,6 +20,12 @@ output "github_vars" {
     JOBS                       = join(",", [for k in keys(local.job_args) : google_cloud_run_v2_job.job[k].name])
     API_BASE_URL               = var.domain == "" ? google_cloud_run_v2_service.api.uri : "https://${var.domain}"
   }
+}
+
+output "db_password" {
+  description = "Password for the AlloyDB Express `postgres` user (staging): pass it to gcloud without printing it (deploy.md)."
+  value       = random_password.db.result
+  sensitive   = true
 }
 
 output "owner_secrets" {
