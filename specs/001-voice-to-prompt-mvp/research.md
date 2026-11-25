@@ -15,6 +15,7 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
   - Billing counts every second of audio sent, **including silence**, so the client must stop streaming on release and never pre-open the mic stream to the provider.
   - Zero retention: `enable_logging=false`, **enterprise plans only**. On other plans ElevenLabs may log audio/transcripts; the privacy page (Story 5.6) must say so until an enterprise plan is in place.
   - Regional hosts exist (`api.us`, `api.eu.residency`, `api.in.residency`, `api.sg.residency`) — the India residency host is an option to evaluate for latency/DPDP.
+- **Superseded in part by ADR-011 (2026-11-25)**: the desktop no longer connects to ElevenLabs. The API keeps the single-use token, proxies the WebSocket at `/v1/stream` and meters the audio, because client-reported seconds let a modified client bypass the quota (audit SEC-03).
 - **Still open**: per-plan concurrency limit (see elevenlabs.io/docs/overview/models#concurrency-and-priority; confirm with ElevenLabs before Story 6.5).
 
 ## R2 — LLM gateway and model slugs (VERIFIED 2026-11-25, T019)
@@ -75,6 +76,8 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
 ## R11 — Metering of audio
 - **Decision**: Client reports audio seconds at session end; backend clamps to `maxSessionSeconds` and the session wall-clock; weekly reconciliation vs ElevenLabs usage.
 - **Rationale**: Audio bypasses backend; this bounds abuse while keeping latency low.
+- **Reconciliation source (read 2026-11-25, T096)**: `GET /v1/usage/character-stats` with `start_unix` / `end_unix` in **milliseconds**, `metric` one of credits, tts_characters, minutes_used, request_count, ttfb_avg, ttfb_p95, fiat_units_spent, concurrency, concurrency_average; `breakdown_type` includes `product_type`; `aggregation_interval` hour/day/week/month/cumulative. Response `{ time: [...], usage: { <label>: [...] } }`.
+- **Not confirmed**: whether `minutes_used` with `product_type` breakdown yields a speech-to-text series, and its label. The page marks the endpoint deprecated in favour of `/v1/workspace/analytics/query/usage-by-product-over-time`, which could not be read (403). The job therefore reports `unknown` (never a false drift alarm) when no STT-like series comes back; the runbook says to compare by hand then and update the job.
 
 ## R12 — Quality evaluation
 - **Decision**: 30+ consented real dictations incl. Indian English/Hinglish, names, self-corrections, injection attempts; rule checks + LLM-judge pairwise vs Lemon baseline; WER for raw STT.
@@ -94,3 +97,4 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
 ## R16 — Observability on Google Cloud (ADR-006)
 - **Decision**: OTel → Cloud Monitoring/Trace; backend errors → Error Reporting; client crashes and text-free events → `POST /v1/telemetry` → Error Reporting / Cloud Logging → BigQuery sink.
 - **Rationale**: Keeps provider credentials off the client and everything in one Google Cloud project.
+- **Implementation (T092-T094)**: Google-built OpenTelemetry Collector as a Cloud Run sidecar (`infra/terraform/otel-collector.yaml`), `googlecloud` exporter with prefix `workload.googleapis.com`, so API metrics land on `generic_task` resources; `service.namespace` = env separates staging and prod. Alerts use ratio and percentile threshold conditions (`infra/observability`). The collector image tag must be checked against Google's sidecar guide before the first apply.

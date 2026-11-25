@@ -1,6 +1,7 @@
 import { buildMessages, TEMPLATE_VERSION } from "@sayvox/prompts";
 import { RewriteRequest } from "@sayvox/shared";
 import type { FastifyInstance } from "fastify";
+import { llmTtftDuration, rewriteCounter } from "../../lib/otel/metrics";
 import type { StreamCompletion } from "../../lib/openrouter/stream";
 import { ApiError } from "../../plugins/errors";
 import { requireUser } from "../auth/plugin";
@@ -14,6 +15,8 @@ export interface RewriteDeps {
   config: ConfigService;
   complete: StreamCompletion;
   prices: () => Map<string, ModelPrice>;
+  /** Count a rewrite for the session; false when its cap is used up (see claimRewrite). */
+  claim?: (sessionId: string) => Promise<boolean>;
   heartbeatMs?: number;
   ttftMs?: number;
   totalMs?: number;
@@ -35,6 +38,14 @@ export function registerRewriteRoutes(app: FastifyInstance, deps: RewriteDeps): 
     const status = await deps.store.sessionStatus(user.id, body.sessionId);
     if (status === null) throw new ApiError("NOT_FOUND", "Session not found");
     if (status !== "started") throw new ApiError("CONFLICT", "Session already ended");
+    if (deps.claim) {
+      const ok = await deps.claim(body.sessionId).catch((err: unknown) => {
+        // Redis down: don't block dictation; the session rate limit still applies.
+        req.log.warn({ errName: (err as Error).name }, "rewrite claim failed");
+        return true;
+      });
+      if (!ok) throw new ApiError("RATE_LIMITED", "This dictation was already rewritten");
+    }
 
     const preset = await deps.store.preset(user.id);
     const models = (await deps.config.presets())[preset];
@@ -105,6 +116,8 @@ export function registerRewriteRoutes(app: FastifyInstance, deps: RewriteDeps): 
         }
         if (ev.event === "done") {
           write("done", ev.data);
+          llmTtftDuration().record(ev.data.ttftMs, { mode: body.mode });
+          rewriteCounter().add(1, { mode: body.mode, outcome: fallbackUsed ? "fallback" : "ok" });
           await deps.store
             .record(
               user.id,
@@ -133,6 +146,7 @@ export function registerRewriteRoutes(app: FastifyInstance, deps: RewriteDeps): 
         }
         if (ev.event === "error") {
           req.log.warn({ code: ev.data.code }, "rewrite failed");
+          rewriteCounter().add(1, { mode: body.mode, outcome: "error" });
           await deps.store
             .record(
               user.id,

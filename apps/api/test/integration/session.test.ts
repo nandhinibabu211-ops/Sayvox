@@ -10,7 +10,10 @@ import { ProviderError } from "../../src/lib/elevenlabs/token";
 import { createLogger } from "../../src/lib/logger";
 import { createUserResolver } from "../../src/modules/auth/users";
 import { ConfigService } from "../../src/modules/config/service";
+import { getUsedSeconds } from "../../src/modules/limits/store";
 import { sweepAbandonedSessions } from "../../src/modules/session/sweeper";
+import { createAudioCharger } from "../../src/modules/stream/charge";
+import { takeTicket } from "../../src/modules/stream/ticket";
 import { startPostgres, startRedis, type PgFixture } from "./helpers";
 
 let pg: PgFixture;
@@ -111,8 +114,17 @@ describe("POST /v1/session/start (T022)", () => {
     const res = await start(a, "u-start");
     expect(res.statusCode).toBe(200);
     const body = SessionStartResponse.parse(res.json());
-    expect(body).toMatchObject({
+    // The Scribe token stays on the server; the client gets a one-time stream ticket.
+    expect(JSON.stringify(body)).not.toContain("sutkn_300");
+    const ticket = await takeTicket(redis, body.streamTicket);
+    expect(ticket).toMatchObject({
+      sessionId: body.sessionId,
       scribeToken: "sutkn_300",
+      keytermsUsed: true,
+      maxSessionSeconds: 300,
+    });
+    expect(await takeTicket(redis, body.streamTicket)).toBeNull(); // single use
+    expect(body).toMatchObject({
       keyterms: ["Zia", "Zoho"],
       languageHint: "en-IN",
       maxSessionSeconds: 300,
@@ -197,7 +209,7 @@ describe("POST /v1/session/start (T022)", () => {
 });
 
 describe("POST /v1/session/:id/end (T023)", () => {
-  it("closes the session, records usage and counts against quota", async () => {
+  it("closes the session and counts the dictation; audio comes only from the stream proxy", async () => {
     const a = app();
     const { sessionId } = (await start(a, "u-end")).json();
     clock = new Date(clock.getTime() + 8_000);
@@ -207,23 +219,51 @@ describe("POST /v1/session/:id/end (T023)", () => {
     const [row] = await pg.handle.db.select().from(sessions).where(eq(sessions.id, sessionId));
     expect(row).toMatchObject({
       status: "completed",
-      audioSeconds: "4.20",
+      audioSeconds: null,
       releaseToInsertMs: 640,
       targetApp: "notepad.exe",
     });
     const uid = await userId("u-end");
     const [usage] = await pg.handle.db.select().from(usageDaily).where(eq(usageDaily.userId, uid));
-    expect(usage).toMatchObject({ audioSeconds: "4.20", requests: 1 });
+    expect(usage).toMatchObject({ audioSeconds: "0.00", requests: 1 });
     await a.close();
   });
 
-  it("clamps audio seconds to wall-clock time since start", async () => {
+  it("ignores the client's audioSeconds, so under-reporting can't dodge the quota (SEC-03)", async () => {
     const a = app();
-    const { sessionId } = (await start(a, "u-clamp")).json();
-    clock = new Date(clock.getTime() + 3_000);
-    await end(a, "u-clamp", sessionId, endBody(250));
+    const { sessionId } = (await start(a, "u-honest")).json();
+    const uid = await userId("u-honest");
+    // The proxy metered 42 s; the client claims 0.
+    await createAudioCharger(
+      pg.handle.db,
+      redis,
+    )({
+      userId: uid,
+      sessionId,
+      seconds: 42,
+      keytermsUsed: false,
+      at: clock,
+    });
+    await end(a, "u-honest", sessionId, endBody(0));
     const [row] = await pg.handle.db.select().from(sessions).where(eq(sessions.id, sessionId));
-    expect(row!.audioSeconds).toBe("3.00");
+    expect(row!.audioSeconds).toBe("42.00");
+    const [usage] = await pg.handle.db.select().from(usageDaily).where(eq(usageDaily.userId, uid));
+    expect(usage).toMatchObject({ audioSeconds: "42.00", requests: 1 });
+    expect((await getUsedSeconds(redis, pg.handle.db, uid, clock)).day).toBe(42);
+    await a.close();
+  });
+
+  it("charges a session's metered audio only once", async () => {
+    const a = app();
+    const { sessionId } = (await start(a, "u-once")).json();
+    const uid = await userId("u-once");
+    const charge = createAudioCharger(pg.handle.db, redis);
+    const c = { userId: uid, sessionId, seconds: 10, keytermsUsed: true, at: clock };
+    await charge(c);
+    await charge(c);
+    const [usage] = await pg.handle.db.select().from(usageDaily).where(eq(usageDaily.userId, uid));
+    expect(usage!.audioSeconds).toBe("10.00");
+    expect(Number(usage!.sttCostUsd)).toBeGreaterThan(0);
     await a.close();
   });
 
@@ -235,7 +275,7 @@ describe("POST /v1/session/:id/end (T023)", () => {
     expect((await end(a, "u-idem", sessionId, endBody(5, "failed"))).statusCode).toBe(204);
     const uid = await userId("u-idem");
     const [usage] = await pg.handle.db.select().from(usageDaily).where(eq(usageDaily.userId, uid));
-    expect(usage).toMatchObject({ audioSeconds: "5.00", requests: 1 });
+    expect(usage).toMatchObject({ requests: 1 });
     const [row] = await pg.handle.db.select().from(sessions).where(eq(sessions.id, sessionId));
     expect(row!.status).toBe("completed");
     await a.close();

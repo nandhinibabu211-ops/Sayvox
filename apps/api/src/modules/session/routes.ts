@@ -9,19 +9,15 @@ import { type MintScribeToken, ProviderError } from "../../lib/elevenlabs/token"
 import {
   releaseToInsertDuration,
   sessionStartDuration,
+  sessionEndCounter,
   sttCommitDuration,
 } from "../../lib/otel/metrics";
 import { ApiError } from "../../plugins/errors";
 import { requireUser } from "../auth/plugin";
 import type { ConfigService } from "../config/service";
-import {
-  capKeyterms,
-  clampAudioSeconds,
-  decideQuota,
-  type PlanLimits,
-  sttCostUsd,
-} from "../limits/policy";
-import { addUsedSeconds, getUsedSeconds, takeRateToken } from "../limits/store";
+import { capKeyterms, decideQuota, type PlanLimits } from "../limits/policy";
+import { getUsedSeconds, takeRateToken } from "../limits/store";
+import { issueTicket } from "../stream/ticket";
 
 export interface SessionDeps {
   db: Db;
@@ -142,12 +138,28 @@ export function registerSessionRoutes(app: FastifyInstance, deps: SessionDeps): 
     }
     if (!session) throw new ApiError("INTERNAL", "Session not created");
 
+    // The Scribe token never leaves the server: the client gets a one-time ticket for the
+    // metering proxy (/v1/stream, audit SEC-03), valid as long as the token.
+    const languageHint = prefs[0]?.languageHint ?? null;
+    const streamTicket = await issueTicket(
+      deps.redis,
+      {
+        sessionId: session.id,
+        userId: user.id,
+        scribeToken: token.token,
+        keyterms,
+        languageHint,
+        keytermsUsed: keyterms.length > 0,
+        maxSessionSeconds: quota.maxSessionSeconds,
+      },
+      Math.max(1, (token.expiresAt.getTime() - Date.now()) / 1000),
+    );
     const body: SessionStartResponse = {
       sessionId: session.id,
-      scribeToken: token.token,
+      streamTicket,
       expiresAt: token.expiresAt.toISOString(),
       keyterms,
-      languageHint: prefs[0]?.languageHint ?? null,
+      languageHint,
       maxSessionSeconds: quota.maxSessionSeconds,
     };
     sessionStartDuration().record(performance.now() - started);
@@ -165,29 +177,19 @@ export function registerSessionRoutes(app: FastifyInstance, deps: SessionDeps): 
       const [row] = await tx
         .select({
           userId: sessions.userId,
-          startedAt: sessions.startedAt,
           status: sessions.status,
-          keytermsUsed: sessions.keytermsUsed,
-          maxSessionSeconds: sessions.maxSessionSeconds,
         })
         .from(sessions)
         .where(eq(sessions.id, id))
         .for("update");
       if (!row || row.userId !== user.id) throw new ApiError("NOT_FOUND", "Session not found");
-      if (row.status !== "started") return { transitioned: false, seconds: 0 };
+      if (row.status !== "started") return { transitioned: false };
 
-      const seconds = clampAudioSeconds(
-        body.audioSeconds,
-        row.startedAt,
-        at,
-        row.maxSessionSeconds,
-      );
       await tx
         .update(sessions)
         .set({
           status: STATUS_FOR[body.insertResult],
           endedAt: at,
-          audioSeconds: seconds.toFixed(2),
           mode: body.mode ?? null,
           targetApp: body.targetApp ?? null,
           sttCommitMs: body.timings.sttCommitMs,
@@ -196,33 +198,24 @@ export function registerSessionRoutes(app: FastifyInstance, deps: SessionDeps): 
         })
         .where(and(eq(sessions.id, id), eq(sessions.status, "started")));
 
-      // Audio was streamed (and billed by ElevenLabs) even if the result was discarded.
-      const cost = sttCostUsd(seconds, row.keytermsUsed);
+      // Audio seconds and STT cost are charged by the /v1/stream proxy from what it actually
+      // forwarded (audit SEC-03), never from the client's `audioSeconds`. Only count the
+      // dictation here.
       await tx
         .insert(usageDaily)
-        .values({
-          userId: user.id,
-          day: at.toISOString().slice(0, 10),
-          audioSeconds: seconds.toFixed(2),
-          requests: 1,
-          sttCostUsd: cost.toFixed(5),
-        })
+        .values({ userId: user.id, day: at.toISOString().slice(0, 10), requests: 1 })
         .onConflictDoUpdate({
           target: [usageDaily.userId, usageDaily.day],
-          set: {
-            audioSeconds: sql`${usageDaily.audioSeconds} + excluded.audio_seconds`,
-            requests: sql`${usageDaily.requests} + 1`,
-            sttCostUsd: sql`${usageDaily.sttCostUsd} + excluded.stt_cost_usd`,
-          },
+          set: { requests: sql`${usageDaily.requests} + 1` },
         });
-      return { transitioned: true, seconds };
+      return { transitioned: true };
     });
 
     if (result.transitioned) {
-      await addUsedSeconds(deps.redis, user.id, result.seconds, at);
       const attrs = { mode: body.mode ?? "dictation", result: body.insertResult };
       releaseToInsertDuration().record(body.timings.releaseToInsertMs, attrs);
       sttCommitDuration().record(body.timings.sttCommitMs, attrs);
+      sessionEndCounter().add(1, { ...attrs, scribe_retried: body.scribeRetried === true });
     }
     return reply.code(204).send();
   });

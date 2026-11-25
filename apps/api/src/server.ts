@@ -11,6 +11,9 @@ import { keys } from "./lib/redis/keys";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
+import { claimRewrite } from "./modules/limits/store";
+import { createAudioCharger } from "./modules/stream/charge";
+import { takeTicket } from "./modules/stream/ticket";
 import { closePool, pooledFetch } from "./lib/openrouter/pool";
 import { createOpenRouterClient } from "./lib/openrouter/stream";
 import { createDbRewriteStore } from "./modules/rewrite/store";
@@ -34,7 +37,7 @@ const telemetry = startTelemetry({
   traceSampleRatio: env.OTEL_TRACE_SAMPLE_RATIO,
 });
 
-const database = createDb(env.DATABASE_URL, env.DB_POOL_MAX);
+const database = createDb(env.DATABASE_URL, env.DB_POOL_MAX, env.DB_CONNECT_TIMEOUT_MS);
 const redis = createRedis(env.REDIS_URL);
 await redis.connect();
 
@@ -91,6 +94,7 @@ const app = buildApp({
     config,
     complete: createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch }),
     prices: () => prices,
+    claim: (sessionId) => claimRewrite(redis, sessionId),
   },
   settings: { db: database.db, redis },
   account: {
@@ -103,6 +107,10 @@ const app = buildApp({
     ...(razorpay ? { cancelSubscriptions: createSubscriptionCanceller(razorpay) } : {}),
   },
   usage: { db: database.db, redis, planMap, billingAvailable },
+  stream: {
+    takeTicket: (ticket) => takeTicket(redis, ticket),
+    charge: createAudioCharger(database.db, redis),
+  },
   billing: {
     db: database.db,
     redis,

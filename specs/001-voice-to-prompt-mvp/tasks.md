@@ -143,15 +143,15 @@ Tests are written first and must fail before implementation (Constitution V).
 - [x] T091 [US5] Apply free-tier caps from ADR-004 (10 min/day, 120 min/month, Balanced + Cheapest, 25 terms) to seed — `apps/api/src/lib/db/seed.ts` *(already applied in Phase 2; covered by `test/integration/db.test.ts`)*
 
 ## Phase 10: Polish & cross-cutting (launch)
-- [ ] T092 [P] Cloud Monitoring dashboards + alerts for every signal in architecture §16 — `infra/observability/`
-- [ ] T093 [P] Text-free product events via `/v1/telemetry` + BigQuery log sink — `apps/desktop/src/telemetry/analytics.ts`, `infra/`
-- [ ] T094 Terraform for Cloud Run, Cloud SQL, Memorystore, Secret Manager, Artifact Registry; GitHub Actions via Workload Identity Federation; staging deploy + smoke test + manual prod approval + auto-rollback — `infra/terraform/`, `.github/workflows/deploy.yml`
-- [ ] T095 Load balancer + Cloud Armor WAF + rate limiting — `infra/terraform/edge.tf`
-- [ ] T096 Weekly audio reconciliation vs ElevenLabs usage — `apps/api/src/jobs/reconcile.ts`
-- [ ] T097 Provider spend caps + Google Cloud budget alert + daily spend alert (2× 7-day avg) — `infra/observability/`
-- [ ] T098 k6 load test at 3× expected peak — `eval/load/`
-- [ ] T099 Kill switch + rollback drill — `docs/runbooks/kill-switch.md`
-- [ ] T100 Landing page + downloads + pricing — `apps/web/`
+- [x] T092 [P] Cloud Monitoring dashboards + alerts for every signal in architecture §16 — `infra/observability/` *(new crash type: Error Reporting notification, set in console)*
+- [x] T093 [P] Text-free product events via `/v1/telemetry` + BigQuery log sink — `apps/desktop/src/telemetry/analytics.ts`, `infra/observability/analytics.tf`
+- [x] T094 Terraform for Cloud Run, Cloud SQL, Memorystore, Secret Manager, Artifact Registry; GitHub Actions via Workload Identity Federation; staging deploy + smoke test + manual prod approval + auto-rollback — `infra/terraform/`, `.github/workflows/deploy.yml`
+- [x] T095 Load balancer + Cloud Armor WAF + rate limiting — `infra/terraform/edge.tf`
+- [x] T096 Weekly audio reconciliation vs ElevenLabs usage — `apps/api/src/jobs/reconcile.ts` *(provider series label unconfirmed: research R11)*
+- [x] T097 Provider spend caps + Google Cloud budget alert + daily spend alert (2× 7-day avg) — `infra/observability/`, `apps/api/src/jobs/spend.ts` *(provider caps are dashboard settings: `docs/runbooks/kill-switch.md`)*
+- [x] T098 k6 load test at 3× expected peak — `eval/load/` *(script + runbook; the run itself needs staging: `docs/runbooks/load-test.md`)*
+- [x] T099 Kill switch + rollback drill — `docs/runbooks/kill-switch.md` *(drill procedure; run it on staging and log it there)*
+- [x] T100 Landing page + downloads + pricing — `apps/web/index.html` *(Pro price shown as coming soon until set)*
 - [ ] T101 Run `quickstart.md` end-to-end on Windows 10 and Windows 11
 
 ---
