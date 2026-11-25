@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "timing:report": "tsx timing/report.ts",
-    "quality": "tsx run.ts"
+    "quality": "tsx run.ts",
+    "privacy:audit": "tsx privacy-audit/audit.ts"
   },
   "devDependencies": {
     "tsx": "4.23.15"

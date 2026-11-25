@@ -85,9 +85,22 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /v1/stream:
+    get:
+      summary: Metered speech-to-text stream (WebSocket upgrade, ADR-011)
+      description: >
+        Upgrade with `Sec-WebSocket-Protocol: sayvox.stream.v1, <streamTicket>` (no bearer
+        token, no query string). The server selects `sayvox.stream.v1`, then proxies the
+        Scribe realtime protocol (contracts/scribe-realtime.md) to ElevenLabs, meters the
+        audio and charges it to the session's user when the socket closes.
+      security: []
+      responses:
+        "101": { description: Switching protocols }
+        "401": { description: Missing, unknown, expired or already-used ticket }
+
   /v1/session/{id}/end:
     post:
-      summary: Close a session with client timings
+      summary: Close a session with client timings (usage is metered by /v1/stream, not taken from audioSeconds)
       parameters:
         - in: path
           name: id
@@ -174,17 +187,21 @@ paths:
 
   /v1/usage:
     get:
-      summary: Usage this period and plan limits
+      summary: Usage today and this month, plan limits, subscription and upgrade offers
+      description: Quotas use UTC days and calendar months (data-model.md Redis keys).
       responses:
         "200":
           description: Usage
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Usage" }
+              schema: { $ref: "#/components/schemas/UsageResponse" }
 
   /v1/billing/checkout:
     post:
-      summary: Create hosted checkout session
+      summary: Create a Razorpay subscription and return its hosted payment link (ADR-003)
+      description: >
+        The link (short_url) is opened in the system browser and expires after 24 h.
+        The plan only changes when the signed webhook reports the subscription active.
       requestBody:
         required: true
         content:
@@ -193,21 +210,50 @@ paths:
               type: object
               required: [planId]
               properties:
-                planId: { type: string }
+                planId: { type: string, maxLength: 32 }
       responses:
         "200":
-          description: Checkout URL
+          description: Hosted payment link
           content:
             application/json:
-              schema: { type: object, properties: { url: { type: string, format: uri } } }
+              schema: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
+  /v1/billing/cancel:
+    post:
+      summary: Cancel the active subscription at the end of the paid period
+      responses:
+        "200":
+          description: Cancelled at period end; the plan stays until then
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  currentPeriodEnd: { type: string, format: date-time, nullable: true }
+        "404": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 
   /v1/billing/webhook:
     post:
       security: []
-      summary: Razorpay webhook (X-Razorpay-Signature verified, idempotent on event id)
+      summary: Razorpay subscription webhook
+      description: >
+        Verified with X-Razorpay-Signature (hex HMAC-SHA256 of the raw body with the webhook
+        secret). Idempotent on X-Razorpay-Event-Id; events older than the last one applied to a
+        subscription are ignored (Razorpay does not guarantee order). Payloads are never stored.
+        subscription.* events update the subscription and the user's plan: active and
+        pending (payment retry grace) grant the plan; halted, paused, cancelled, completed and
+        expired do not.
       parameters:
         - in: header
           name: X-Razorpay-Signature
+          required: true
+          schema: { type: string }
+        - in: header
+          name: X-Razorpay-Event-Id
           required: true
           schema: { type: string }
       requestBody:
@@ -216,15 +262,29 @@ paths:
           application/json:
             schema: { type: object }
       responses:
-        "200": { description: Accepted }
+        "200":
+          description: Accepted (applied, duplicate, stale, unknown or ignored)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [applied, duplicate, stale, unknown, ignored] }
         "400": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
 
   /v1/account:
     delete:
       summary: Delete account and all user data
+      description: >
+        Idempotent and safe to retry. Removes the user's rows (cascade), Redis keys and
+        Identity Platform account; the caller's ID token is refused afterwards (401).
+        409 while a live subscription still has to be cancelled.
       responses:
         "204": { description: Deleted }
-        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
 
   /v1/telemetry:
     post:
@@ -290,13 +350,22 @@ components:
         killSwitch: { type: boolean }
         killSwitchMessage: { type: string }
         rolloutPercent: { type: integer, minimum: 0, maximum: 100 }
-        inRollout: { type: boolean }
+        inRollout: { type: boolean, description: "This install (x-install-id) is in the staged rollout" }
+        updateRequired:
+          type: boolean
+          description: Present when x-client-version was sent; true if below minClientVersion
     SessionStartResponse:
       type: object
-      required: [sessionId, scribeToken, keyterms, maxSessionSeconds, expiresAt]
+      required: [sessionId, streamTicket, keyterms, maxSessionSeconds, expiresAt]
       properties:
         sessionId: { type: string, format: uuid }
-        scribeToken: { type: string }
+        streamTicket:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: >
+            One-time ticket for the GET /v1/stream WebSocket (subprotocols
+            ["sayvox.stream.v1", ticket]). The Scribe token stays on the server, which proxies
+            and meters the audio (ADR-011).
         expiresAt: { type: string, format: date-time }
         keyterms: { type: array, items: { type: string } }
         languageHint: { type: string, nullable: true }
@@ -380,6 +449,32 @@ components:
         errorCode: { type: string, maxLength: 64, pattern: "^[A-Z0-9_]+$" }
         module: { type: string, enum: [hotkey, audio, scribe, rewrite, insert, overlay, settings, updater, other] }
         stack: { type: string, maxLength: 8000, description: "Symbolicated frames only; scrubbed of string literals client-side and server-side" }
+    UsageResponse:
+      allOf:
+        - $ref: "#/components/schemas/Usage"
+        - type: object
+          required: [planName, subscription, upgrades, billingAvailable]
+          properties:
+            planName: { type: string }
+            subscription:
+              type: object
+              nullable: true
+              properties:
+                status: { type: string, enum: [active, past_due, cancelled, incomplete, halted] }
+                currentPeriodEnd: { type: string, format: date-time, nullable: true }
+                cancelAtPeriodEnd: { type: boolean }
+            upgrades:
+              type: array
+              items:
+                type: object
+                properties:
+                  planId: { type: string }
+                  name: { type: string }
+                  priceCents: { type: integer }
+                  currency: { type: string }
+                  dailyCapMinutes: { type: integer }
+                  monthlyMinutes: { type: integer }
+            billingAvailable: { type: boolean }
     Usage:
       type: object
       properties:

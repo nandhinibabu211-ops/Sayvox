@@ -26,6 +26,7 @@ uuid = { version = "1.29.3", features = ["v4"] }
 # Windows Credential Manager only (ADR-010).
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
 cpal = "0.18.2"
+tauri-plugin-updater = "2.12.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [

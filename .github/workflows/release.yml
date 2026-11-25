@@ -1,0 +1,168 @@
+name: Release
+
+# Story 5.2 / 5.3 (T082-T083). On a version tag: build unsigned Windows installers (ADR-007),
+# signed updater packages, SHA-256 checksums; upload to the release bucket. Making the
+# update live (the `latest.json` manifest and the `releases/latest/` download links) is a
+# separate job behind the `release-updates` environment, so it needs a manual approval.
+# Runbook: docs/runbooks/release.md.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  BUCKET: ${{ vars.RELEASE_BUCKET || 'sayvox-app-2026-releases' }}
+
+jobs:
+  build:
+    name: Build Windows installers
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version from tag must match the app
+        id: version
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart("v")
+          $conf = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $pkg = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).version
+          if ($v -ne $conf -or $v -ne $pkg) {
+            Write-Error "Tag v$v doesn't match tauri.conf.json ($conf) / package.json ($pkg)"
+            exit 1
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Updater public key must be set
+        run: |
+          $key = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).plugins.updater.pubkey
+          if (-not $key -or $key -like "REPLACE_*") {
+            Write-Error "Set plugins.updater.pubkey in tauri.conf.json (docs/runbooks/release.md)"
+            exit 1
+          }
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+
+      # The dev CSP allows localhost and legacy *.a.run.app hosts. Release builds may talk to
+      # exactly one API origin, the one they are built for (current Cloud Run URLs are
+      # <service>-<number>.<region>.run.app, which the dev pattern would not even match).
+      - name: Pin the webview CSP to the API origin
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: |
+          $u = [Uri]$env:API_BASE_URL
+          if ($u.Scheme -ne "https") { Write-Error "API_BASE_URL must be an https URL"; exit 1 }
+          $origin = "https://$($u.Authority)"
+          $base = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).app.security.csp
+          # https for the API, wss for the metered speech stream (/v1/stream).
+          $csp = $base.Replace("http://localhost:8787 ws://localhost:8787 https://*.a.run.app", "$origin wss://$($u.Authority)")
+          if ($csp -eq $base) { Write-Error "dev CSP hosts not found in tauri.conf.json"; exit 1 }
+          $path = "apps/desktop/src-tauri/tauri.release.conf.json"
+          $conf = Get-Content $path -Raw | ConvertFrom-Json
+          $conf | Add-Member -NotePropertyName app -NotePropertyValue @{ security = @{ csp = $csp } } -Force
+          $conf | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 $path
+          "Release CSP connect-src uses $origin"
+
+      - name: Build (.msi + NSIS .exe, updater artifacts signed)
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_APP_VERSION: ${{ steps.version.outputs.version }}
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_WEB_API_KEY }}
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.release.conf.json
+
+      - name: Collect installers, checksums and manifest
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $bundle = "apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          $exe = Get-ChildItem "$bundle/nsis/*_x64-setup.exe" | Select-Object -First 1
+          $msi = Get-ChildItem "$bundle/msi/*_x64_*.msi" | Select-Object -First 1
+          if (-not $exe -or -not $msi) { Write-Error "installers not found"; exit 1 }
+          New-Item -ItemType Directory -Force out/versioned, out/latest | Out-Null
+          Copy-Item $exe.FullName, "$($exe.FullName).sig", $msi.FullName out/versioned/
+          Copy-Item $exe.FullName out/latest/Sayvox-setup.exe
+          Copy-Item $msi.FullName out/latest/Sayvox.msi
+
+          function Write-Sums($dir) {
+            Get-ChildItem $dir -File -Exclude *.sig, SHA256SUMS.txt | Sort-Object Name | ForEach-Object {
+              "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+            } | Set-Content -Encoding ascii "$dir/SHA256SUMS.txt"
+          }
+          Write-Sums out/versioned
+          Write-Sums out/latest
+          Get-Content out/versioned/SHA256SUMS.txt
+
+          $url = "https://storage.googleapis.com/$env:BUCKET/releases/v$env:VERSION/$($exe.Name)"
+          node apps/desktop/scripts/release-manifest.ts --version $env:VERSION `
+            --sig "$($exe.FullName).sig" --url $url --out out/latest.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sayvox-${{ steps.version.outputs.version }}
+          path: out/
+          retention-days: 30
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload versioned release (not live yet)
+        run: |
+          $dest = "gs://$env:BUCKET/releases/v${{ steps.version.outputs.version }}/"
+          gcloud storage cp out/versioned/* $dest --cache-control="public, max-age=31536000, immutable"
+          gcloud storage cp out/latest.json "$($dest)latest.json" --cache-control="no-store"
+
+  publish:
+    name: Make the update live
+    needs: build
+    runs-on: ubuntu-latest
+    # Approval gate: configure required reviewers on this environment.
+    environment: release-updates
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_RELEASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: sayvox-${{ needs.build.outputs.version }}
+          path: out
+      - name: Publish manifest and stable download links
+        run: |
+          # Clients only fetch the manifest when /v1/client-config puts them in the rollout,
+          # so set rolloutPercent (e.g. 10) BEFORE approving this job.
+          gcloud storage cp out/latest/* "gs://$BUCKET/releases/latest/" --cache-control="no-cache, max-age=0"
+          gcloud storage cp out/latest.json "gs://$BUCKET/updates/latest.json" --cache-control="no-cache, max-age=0"
+          echo "Live: https://storage.googleapis.com/$BUCKET/updates/latest.json"

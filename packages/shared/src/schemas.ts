@@ -31,6 +31,8 @@ export const ClientConfig = z.object({
   killSwitchMessage: z.string().optional(),
   rolloutPercent: z.int().min(0).max(100),
   inRollout: z.boolean(),
+  /** Set when the request carried `x-client-version`: below `minClientVersion`. */
+  updateRequired: z.boolean().optional(),
 });
 export type ClientConfig = z.infer<typeof ClientConfig>;
 
@@ -41,7 +43,12 @@ export type SessionStartRequest = z.infer<typeof SessionStartRequest>;
 
 export const SessionStartResponse = z.object({
   sessionId: z.uuid(),
-  scribeToken: z.string().min(1),
+  /**
+   * One-time ticket for `GET /v1/stream` (WebSocket, subprotocols
+   * ["sayvox.stream.v1", ticket]). The ElevenLabs token stays on the server, which proxies
+   * and meters the audio (audit SEC-03).
+   */
+  streamTicket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   expiresAt: z.iso.datetime(),
   keyterms: z.array(z.string()),
   languageHint: z.string().nullable().optional(),
@@ -63,6 +70,7 @@ export const InsertResult = z.enum(["inserted", "raw_fallback", "discarded", "fa
 export type InsertResult = z.infer<typeof InsertResult>;
 
 export const SessionEndRequest = z.object({
+  /** Client-side estimate, kept for diagnostics only: usage is metered by /v1/stream. */
   audioSeconds: z.number().min(0),
   mode: Mode.optional(),
   targetApp: TargetApp.optional(),
@@ -162,10 +170,61 @@ export const Usage = z.object({
 });
 export type Usage = z.infer<typeof Usage>;
 
-export const CheckoutRequest = z.object({
+export const SubscriptionStatus = z.enum([
+  "active",
+  "past_due",
+  "cancelled",
+  "incomplete",
+  "halted",
+]);
+export type SubscriptionStatus = z.infer<typeof SubscriptionStatus>;
+
+/** A plan the user can upgrade to (prices from `plans`; Razorpay holds the real amount). */
+export const PlanOffer = z.object({
   planId: z.string(),
+  name: z.string(),
+  priceCents: z.int().min(0),
+  currency: z.string().length(3),
+  dailyCapMinutes: z.int(),
+  monthlyMinutes: z.int(),
+});
+export type PlanOffer = z.infer<typeof PlanOffer>;
+
+/** GET /v1/usage (Story 2.8 / T085): usage, limits, subscription and upgrade options. */
+export const UsageResponse = Usage.extend({
+  planName: z.string(),
+  subscription: z
+    .object({
+      status: SubscriptionStatus,
+      currentPeriodEnd: z.iso.datetime().nullable(),
+      cancelAtPeriodEnd: z.boolean(),
+    })
+    .nullable(),
+  upgrades: z.array(PlanOffer),
+  /** False until Razorpay keys and plan ids are configured on the server. */
+  billingAvailable: z.boolean(),
+});
+export type UsageResponse = z.infer<typeof UsageResponse>;
+
+export const CheckoutRequest = z.object({
+  planId: z.string().min(1).max(32),
 });
 export type CheckoutRequest = z.infer<typeof CheckoutRequest>;
+
+export const CheckoutResponse = z.object({
+  /** Razorpay hosted page (opened in the system browser). */
+  url: z.url(),
+});
+export type CheckoutResponse = z.infer<typeof CheckoutResponse>;
+
+export const CancelSubscriptionResponse = z.object({
+  /** The paid plan stays until then. */
+  currentPeriodEnd: z.iso.datetime().nullable(),
+});
+export type CancelSubscriptionResponse = z.infer<typeof CancelSubscriptionResponse>;
+
+/** Version strings only ("0.1.0", "0.2.0-beta.1"): no room for free text. */
+const ClientVersion = z.string().regex(/^[0-9A-Za-z.+-]{1,32}$/);
 
 /** Text-free product event (strict: unknown fields are rejected). */
 export const TelemetryEvent = z.strictObject({
@@ -180,7 +239,7 @@ export const TelemetryEvent = z.strictObject({
   at: z.iso.datetime(),
   mode: Mode.optional(),
   durationMs: z.int().min(0).optional(),
-  clientVersion: z.string().max(32).optional(),
+  clientVersion: ClientVersion.optional(),
   os: ClientOs.optional(),
 });
 export type TelemetryEvent = z.infer<typeof TelemetryEvent>;
@@ -200,7 +259,7 @@ export const CrashModule = z.enum([
 export const CrashReport = z.strictObject({
   kind: z.literal("crash"),
   at: z.iso.datetime(),
-  clientVersion: z.string().max(32),
+  clientVersion: ClientVersion,
   os: ClientOs,
   errorCode: z
     .string()

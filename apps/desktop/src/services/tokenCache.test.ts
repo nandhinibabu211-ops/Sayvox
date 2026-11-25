@@ -6,7 +6,7 @@ const NOW = 1_800_000_000_000;
 let n = 0;
 const session = (expiresInMs = 15 * 60_000): SessionStartResponse => ({
   sessionId: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
-  scribeToken: `sutkn_${n}`,
+  streamTicket: `${String(n).padStart(43, "t")}`,
   expiresAt: new Date(NOW + expiresInMs).toISOString(),
   keyterms: [],
   languageHint: null,
@@ -23,7 +23,7 @@ describe("TokenCache", () => {
     await flush();
     expect(start).toHaveBeenCalledTimes(1);
     const s = await c.take();
-    expect(s.scribeToken).toMatch(/^sutkn_/);
+    expect(s.streamTicket).toHaveLength(43);
     await flush();
     expect(start).toHaveBeenCalledTimes(2); // refilled for the next press
   });
@@ -38,7 +38,7 @@ describe("TokenCache", () => {
     const a = await c.take();
     await flush();
     const b = await c.take();
-    expect(a.scribeToken).not.toBe(b.scribeToken);
+    expect(a.streamTicket).not.toBe(b.streamTicket);
   });
 
   it("fetches a fresh session when the cached one is about to expire", async () => {
@@ -66,7 +66,7 @@ describe("TokenCache", () => {
     const a = await c.take(); // claims the in-flight prefetch
     await flush();
     const b = await c.take();
-    expect(a.scribeToken).not.toBe(b.scribeToken);
+    expect(a.streamTicket).not.toBe(b.streamTicket);
   });
 
   it("surfaces errors on take but not on prefetch", async () => {

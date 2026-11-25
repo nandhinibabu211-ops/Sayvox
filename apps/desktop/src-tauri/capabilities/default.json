@@ -17,6 +17,12 @@
         },
         {
           "url": "ms-settings:privacy-microphone"
+        },
+        {
+          "url": "https://rzp.io/*"
+        },
+        {
+          "url": "https://*.razorpay.com/*"
         }
       ]
     }

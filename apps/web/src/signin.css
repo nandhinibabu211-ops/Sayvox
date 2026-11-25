@@ -109,3 +109,13 @@ button:disabled {
 #status.error {
   color: var(--error);
 }
+
+.legal {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legal a {
+  color: var(--accent);
+}

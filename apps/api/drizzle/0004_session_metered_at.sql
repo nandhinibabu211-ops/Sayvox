@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "metered_at" timestamp with time zone;

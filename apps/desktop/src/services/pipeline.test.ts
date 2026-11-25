@@ -9,7 +9,7 @@ import { ScribeError } from "./scribeClient";
 
 const SESSION: SessionStartResponse = {
   sessionId: "3f1c2a4e-8b7d-4c1a-9e2f-1a2b3c4d5e6f",
-  scribeToken: "sutkn_1",
+  streamTicket: "t".repeat(43),
   expiresAt: "2026-11-25T10:15:00Z",
   keyterms: ["Zoho"],
   languageHint: null,
@@ -24,6 +24,7 @@ function harness(
     rewrite?: (req: unknown, onToken: (soFar: string) => void) => Promise<RewriteDone>;
     insertMode?: "auto" | "review";
     modePrefs?: ModePrefs;
+    blocked?: () => { kind: "error"; message: string } | null;
   } = {},
 ) {
   const states: OverlayState[] = [];
@@ -63,6 +64,7 @@ function harness(
     ...(opts.insertMode ? { insertMode: () => opts.insertMode! } : {}),
     ...(opts.modePrefs ? { modePrefs: () => opts.modePrefs! } : {}),
     reviewKeys: (on) => reviewKeys.push(on),
+    ...(opts.blocked ? { blocked: opts.blocked } : {}),
   });
   return {
     p,
@@ -402,6 +404,58 @@ describe("DictationPipeline (US1)", () => {
       expect(rewrite).not.toHaveBeenCalled();
       await h.p.onEvent({ kind: "press", t: 1_000, app: "notepad.exe" });
       expect(h.states.at(-1)).toMatchObject({ mode: "prompt" });
+    });
+  });
+
+  describe("safe updates (US7, T081)", () => {
+    it("a kill switch or forced update blocks the press before any session starts", async () => {
+      let takes = 0;
+      let blocked: { kind: "error"; message: string } | null = {
+        kind: "error",
+        message: "Back in 10 minutes",
+      };
+      const h = harness({
+        takeSession: async () => {
+          takes++;
+          return SESSION;
+        },
+        blocked: () => blocked,
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe" });
+      await h.p.onEvent({ kind: "release", t: 900, audioSeconds: 0.9 });
+      expect(takes).toBe(0);
+      expect(h.insert).not.toHaveBeenCalled();
+      expect(h.states).toContainEqual({ kind: "error", message: "Back in 10 minutes" });
+      blocked = null;
+      await h.p.onEvent({ kind: "press", t: 2_000, app: "notepad.exe" });
+      expect(takes).toBe(1);
+    });
+  });
+
+  describe("usage limits (US5, T086)", () => {
+    it("a monthly cap says monthly and offers Upgrade", async () => {
+      const h = harness({
+        takeSession: async () => {
+          throw new ApiError(402, "QUOTA_EXCEEDED", "Monthly limit reached");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0 });
+      await tick();
+      expect(h.states).toContainEqual({
+        kind: "error",
+        message: "Monthly limit reached.",
+        action: "upgrade",
+      });
+    });
+
+    it("ElevenLabs running out of quota is OUR problem: no Upgrade button for the user", async () => {
+      const h = harness({ transcript: new ScribeError("fatal", "quota_exceeded") });
+      await h.p.onEvent({ kind: "press", t: 0 });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await tick();
+      const err = h.states.find((s) => s.kind === "error");
+      expect(err).toBeDefined();
+      expect(err).not.toHaveProperty("action", "upgrade");
     });
   });
 });

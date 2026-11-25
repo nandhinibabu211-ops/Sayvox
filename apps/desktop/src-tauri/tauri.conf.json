@@ -40,13 +40,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:8787 https://*.a.run.app https://securetoken.googleapis.com wss://api.elevenlabs.io; style-src 'self'; img-src 'self' data:"
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:8787 ws://localhost:8787 https://*.a.run.app https://securetoken.googleapis.com; style-src 'self'; img-src 'self' data:"
     }
   },
   "plugins": {
     "deep-link": {
       "desktop": {
         "schemes": ["sayvox"]
+      }
+    },
+    "updater": {
+      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY",
+      "endpoints": ["https://storage.googleapis.com/sayvox-app-2026-releases/updates/latest.json"],
+      "windows": {
+        "installMode": "passive"
       }
     }
   },
