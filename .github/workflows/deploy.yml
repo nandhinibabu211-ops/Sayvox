@@ -29,7 +29,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGION: us-east4
   PROJECT_ID: sayvox-app-2026
 
 jobs:
@@ -39,6 +38,8 @@ jobs:
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: staging
+    env:
+      REGION: ${{ vars.GCP_REGION }} # us-west1 for the cheap staging shape
     outputs:
       image: ${{ steps.image.outputs.image }}
     steps:
@@ -54,7 +55,7 @@ jobs:
         id: image
         run: |
           IMAGE="${{ vars.API_REPOSITORY }}/api:${GITHUB_SHA}"
-          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          gcloud auth configure-docker "${IMAGE%%/*}" --quiet
           docker build -f apps/api/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
@@ -87,6 +88,8 @@ jobs:
     needs: staging
     runs-on: ubuntu-latest
     environment: production # required reviewers = the manual approval gate
+    env:
+      REGION: ${{ vars.GCP_REGION }}
     steps:
       - uses: actions/checkout@v4
 

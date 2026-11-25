@@ -40,6 +40,38 @@ variable "max_instances" {
   default = 10
 }
 
+variable "database" {
+  description = "cloudsql (prod) or alloydb_express (cheap serverless staging, created with gcloud: deploy.md)."
+  type        = string
+  default     = "cloudsql"
+  validation {
+    condition     = contains(["cloudsql", "alloydb_express"], var.database)
+    error_message = "database must be cloudsql or alloydb_express."
+  }
+}
+
+variable "alloydb_psc_attachment" {
+  description = "Service attachment of the AlloyDB Express instance (gcloud ... instances describe). Empty until it exists."
+  type        = string
+  default     = ""
+}
+
+variable "redis" {
+  description = "memorystore (prod) or vm (free-tier e2-micro, staging only)."
+  type        = string
+  default     = "memorystore"
+  validation {
+    condition     = contains(["memorystore", "vm"], var.redis)
+    error_message = "redis must be memorystore or vm."
+  }
+}
+
+variable "db_connect_timeout_ms" {
+  description = "Postgres connect timeout. AlloyDB Express wakes from pause in ~20 s."
+  type        = number
+  default     = 5000
+}
+
 variable "db_tier" {
   type    = string
   default = "db-custom-1-3840"
@@ -69,9 +101,9 @@ variable "razorpay_plan_ids" {
 }
 
 variable "otel_collector_image" {
-  description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar. Check the latest tag in the Cloud Run 'OpenTelemetry sidecar' guide before applying."
+  description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar (tag checked 2026-11-25 against the public registry)."
   type        = string
-  default     = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.138.0"
+  default     = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.165.1"
 }
 
 variable "domain" {

@@ -3,6 +3,7 @@ locals {
   apis = [
     "run.googleapis.com",
     "sqladmin.googleapis.com",
+    "alloydb.googleapis.com",
     "redis.googleapis.com",
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
@@ -13,6 +14,7 @@ locals {
     "cloudtrace.googleapis.com",
     "logging.googleapis.com",
     "iamcredentials.googleapis.com",
+    "cloudbuild.googleapis.com",
   ]
 }
 

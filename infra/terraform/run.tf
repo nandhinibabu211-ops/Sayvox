@@ -11,6 +11,7 @@ locals {
     REGION                      = var.region
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
     RAZORPAY_PLAN_IDS           = var.razorpay_plan_ids
+    DB_CONNECT_TIMEOUT_MS       = tostring(var.db_connect_timeout_ms)
   }
   # `cfg` is the runtime-config CLI (kill switch, rollout, min version) run inside the VPC,
   # because Memorystore has no public address. Run it with
@@ -201,6 +202,10 @@ resource "google_cloud_run_v2_job" "job" {
         env {
           name  = "NODE_ENV"
           value = local.node_env
+        }
+        env {
+          name  = "DB_CONNECT_TIMEOUT_MS"
+          value = tostring(var.db_connect_timeout_ms)
         }
         dynamic "env" {
           for_each = toset(local.job_secrets[each.key])
