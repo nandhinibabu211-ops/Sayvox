@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - apps/api/**
+      - apps/web/**
       - packages/shared/**
       - packages/prompts/**
       - pnpm-lock.yaml
@@ -42,6 +43,7 @@ jobs:
       REGION: ${{ vars.GCP_REGION }} # us-west1 for the cheap staging shape
     outputs:
       image: ${{ steps.image.outputs.image }}
+      web_image: ${{ steps.image.outputs.web_image }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +61,11 @@ jobs:
           docker build -f apps/api/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          # Web pages: one image for every environment (config comes from env at start).
+          WEB_IMAGE="${{ vars.API_REPOSITORY }}/web:${GITHUB_SHA}"
+          docker build -f apps/web/Dockerfile -t "$WEB_IMAGE" .
+          docker push "$WEB_IMAGE"
+          echo "web_image=$WEB_IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Point jobs at the new image and run migrations
         run: |
@@ -72,6 +79,14 @@ jobs:
         run: |
           gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" \
             --container=api --image="${{ steps.image.outputs.image }}" --quiet
+
+      - name: Deploy web pages
+        run: |
+          gcloud run services update "${{ vars.WEB_SERVICE }}" --region="$REGION" \
+            --image="${{ steps.image.outputs.web_image }}" \
+            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }}" --quiet
+          curl -fsS "${{ vars.WEB_ORIGIN }}/health" > /dev/null
+          curl -fsS "${{ vars.WEB_ORIGIN }}/config.js" | grep -q 'apiKey: "AIza' || { echo "::error::web config has no API key"; exit 1; }
 
       - uses: actions/setup-node@v4
         with:
@@ -156,3 +171,13 @@ jobs:
         run: |
           gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region="$REGION" \
             --remove-tags candidate --quiet || true
+
+      # Last, so a web failure never triggers the API rollback above.
+      - name: Deploy web pages
+        if: success()
+        run: |
+          gcloud run services update "${{ vars.WEB_SERVICE }}" --region="$REGION" \
+            --image="${{ needs.staging.outputs.web_image }}" \
+            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }}" --quiet
+          curl -fsS "${{ vars.WEB_ORIGIN }}/health" > /dev/null
+          curl -fsS "${{ vars.WEB_ORIGIN }}/config.js" | grep -q 'apiKey: "AIza' || { echo "::error::web config has no API key"; exit 1; }

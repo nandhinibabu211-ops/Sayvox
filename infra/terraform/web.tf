@@ -44,10 +44,26 @@ resource "google_cloud_run_v2_service" "web" {
     }
   }
 
+  # Image and env (FIREBASE_API_KEY, GOOGLE_SIGNIN) are set by deploy.yml from GitHub
+  # environment variables, so the public key never sits in this repository.
   lifecycle {
-    ignore_changes = [template[0].containers[0].image, client, client_version, template[0].revision, template[0].labels]
+    ignore_changes = [
+      template[0].containers[0].image,
+      template[0].containers[0].env,
+      client,
+      client_version,
+      template[0].revision,
+      template[0].labels,
+    ]
   }
   depends_on = [google_project_service.apis]
+}
+
+# Deploys run web revisions as the web SA.
+resource "google_service_account_iam_member" "deploy_act_as_web" {
+  service_account_id = google_service_account.web.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.deploy.email}"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "web_public" {

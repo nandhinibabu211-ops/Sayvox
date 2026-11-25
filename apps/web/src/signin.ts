@@ -9,12 +9,14 @@ import {
   signInWithPopup,
   type User,
 } from "firebase/auth";
+import { webConfig } from "./config";
 import { deepLink, parseHandoff, sendToDesktop } from "./handoff";
 
-// Public Firebase web config (not secrets). Set in apps/web/.env for builds.
+// Identity Platform client config (public; see config.ts).
+const config = webConfig();
 const firebase = initializeApp({
-  apiKey: import.meta.env["VITE_FIREBASE_API_KEY"] as string,
-  authDomain: import.meta.env["VITE_FIREBASE_AUTH_DOMAIN"] as string,
+  apiKey: config.apiKey,
+  authDomain: config.authDomain,
   projectId: "sayvox-app-2026",
 });
 const auth = getAuth(firebase);
@@ -85,7 +87,7 @@ const password = () => $<HTMLInputElement>("password").value;
 // Google sign-in needs an OAuth consent screen + client in Identity Platform (owner step);
 // until VITE_GOOGLE_SIGNIN=true the button is hidden rather than failing on click.
 const googleButton = $<HTMLButtonElement>("google");
-if (import.meta.env["VITE_GOOGLE_SIGNIN"] === "true") {
+if (config.googleSignIn) {
   googleButton.addEventListener("click", () => {
     void run(() => signInWithPopup(auth, new GoogleAuthProvider()));
   });

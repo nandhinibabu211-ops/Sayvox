@@ -20,6 +20,7 @@ output "github_vars" {
     GCP_WIF_PROVIDER           = "${data.google_iam_workload_identity_pool.github.name}/providers/github-oidc"
     GCP_DEPLOY_SERVICE_ACCOUNT = google_service_account.deploy.email
     API_SERVICE                = google_cloud_run_v2_service.api.name
+    WEB_SERVICE                = google_cloud_run_v2_service.web.name
     API_REPOSITORY             = "${var.region}-docker.pkg.dev/${var.project_id}/${local.repo_id}"
     MIGRATE_JOB                = google_cloud_run_v2_job.job["migrate"].name
     JOBS                       = join(",", [for k in keys(local.job_args) : google_cloud_run_v2_job.job[k].name])

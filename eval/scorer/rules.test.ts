@@ -11,6 +11,7 @@ describe("dataset (T056)", () => {
     expect([...modes].sort()).toEqual(["dictation", "email", "prompt"]);
     expect(CASES.filter((c) => c.language === "en-IN").length).toBeGreaterThanOrEqual(5);
     expect(CASES.filter((c) => c.language === "hinglish").length).toBeGreaterThanOrEqual(3);
+    expect(CASES.filter((c) => c.language === "tanglish").length).toBeGreaterThanOrEqual(5);
     expect(CASES.filter((c) => c.injection).length).toBeGreaterThanOrEqual(5);
   });
 
