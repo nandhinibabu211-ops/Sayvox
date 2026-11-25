@@ -248,4 +248,57 @@ describe("DictationPipeline (US1)", () => {
       expect(h.insert).toHaveBeenCalledWith("So let's meet on Friday.");
     });
   });
+
+  describe("reply context (US3, T063)", () => {
+    const done = (text: string): RewriteDone => ({
+      text,
+      model: "m",
+      ttftMs: 1,
+      totalMs: 2,
+      fallbackUsed: false,
+    });
+
+    it("sends the selected thread with an email rewrite", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const h = harness({
+        transcript: "say yes friday works",
+        rewrite: async (req) => {
+          seen.push(req as Record<string, unknown>);
+          return done("Hi Priya,\n\nYes, Friday works.\n\nThanks,");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "olk.exe" });
+      await h.p.onEvent({ kind: "context", threadContext: "Can you make Friday at 3?" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(seen[0]).toMatchObject({ mode: "email", threadContext: "Can you make Friday at 3?" });
+    });
+
+    it("never sends it outside email mode", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const h = harness({
+        rewrite: async (req) => {
+          seen.push(req as Record<string, unknown>);
+          return done("Goal: x");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      await h.p.onEvent({ kind: "context", threadContext: "secret selected code" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(seen[0]).not.toHaveProperty("threadContext");
+    });
+
+    it("a context event after the hold ended is ignored", async () => {
+      const seen: Record<string, unknown>[] = [];
+      const h = harness({
+        rewrite: async (req) => {
+          seen.push(req as Record<string, unknown>);
+          return done("Hi,\n\nOk.\n\nThanks,");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "web:gmail" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await h.p.onEvent({ kind: "context", threadContext: "late selection" });
+      expect(seen[0]).not.toHaveProperty("threadContext");
+    });
+  });
 });

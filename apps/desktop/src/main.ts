@@ -1,4 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { shellStatus } from "./appInfo";
 import { openMicrophoneSettings } from "./onboarding/permissions";
 import { signIn } from "./onboarding/signin";
@@ -38,6 +39,21 @@ $<HTMLButtonElement>("sign-out").addEventListener("click", async () => {
   await credentialSessionStore.clear();
   status.textContent = "Signed out.";
   await refresh();
+});
+
+const replyContext = $<HTMLInputElement>("reply-context");
+try {
+  replyContext.checked = localStorage.getItem("sayvox.replyContext") === "on";
+} catch {
+  replyContext.disabled = true;
+}
+replyContext.addEventListener("change", () => {
+  try {
+    localStorage.setItem("sayvox.replyContext", replyContext.checked ? "on" : "off");
+  } catch {
+    // ignore
+  }
+  void invoke("set_reply_context", { enabled: replyContext.checked });
 });
 
 $<HTMLButtonElement>("mic-settings").addEventListener("click", () => {

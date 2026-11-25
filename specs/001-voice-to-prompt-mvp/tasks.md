@@ -101,10 +101,10 @@ Tests are written first and must fail before implementation (Constitution V).
 ---
 
 ## Phase 5: User Story 3 — Email & Slack (P2)
-- [ ] T060 [P] [US3] Email/Slack template with tone + thread rules — `packages/prompts/src/email.md`
-- [ ] T061 [P] [US3] Eval cases for email/slack — `eval/dataset/email/`
-- [ ] T062 [US3] Browser title → app id mapping (Gmail, Outlook web, Slack web) — `src-tauri/src/active_app/browser_map.rs`
-- [ ] T063 [US3] Optional `threadContext` plumbing (never stored) — `apps/desktop/src/services/rewriteClient.ts`, `apps/api/src/modules/rewrite/`
+- [x] T060 [P] [US3] Email/Slack template with tone + thread rules — `packages/prompts/src/templates/email.md`, `chat.md`
+- [x] T061 [P] [US3] Eval cases for email/slack — `eval/dataset/email.ts` *(13 synthetic cases; recorded versions still pending with T056)*
+- [x] T062 [US3] Browser title → app id mapping (Gmail, Outlook web, Slack web) — `src-tauri/src/active_app/browser_map.rs`
+- [x] T063 [US3] Optional `threadContext` plumbing (never stored) — opt-in selected-text capture via UI Automation (`src-tauri/src/selection/`), pipeline + `/v1/rewrite`
 
 ## Phase 6: User Story 4 — Personalisation (P2)
 - [ ] T064 [P] [US4] Contract tests settings + dictionary — `apps/api/test/contract/settings.test.ts`, `dictionary.test.ts`

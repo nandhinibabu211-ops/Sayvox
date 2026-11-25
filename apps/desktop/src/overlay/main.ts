@@ -150,6 +150,20 @@ channel.onmessage = (m) => {
 };
 void invoke("dictation_attach", { chunks: channel });
 
+// Opt-in reply context (off by default); toggled in the settings window.
+let replyContextOn = false;
+try {
+  replyContextOn = localStorage.getItem("sayvox.replyContext") === "on";
+} catch {
+  // storage unavailable: keep it off
+}
+void invoke("set_reply_context", { enabled: replyContextOn });
+window.addEventListener("storage", (e) => {
+  if (e.key === "sayvox.replyContext") {
+    void invoke("set_reply_context", { enabled: e.newValue === "on" });
+  }
+});
+
 // Warm the token cache if signed in, and again when the network comes back.
 async function warm(): Promise<void> {
   if (await credentialSessionStore.load().catch(() => null)) tokens.prefetch();

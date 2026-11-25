@@ -37,6 +37,12 @@ pub enum DictationEvent {
         t: u64,
         audio_seconds: f32,
     },
+    /// Opt-in reply context: the text selected in the target app at press (T063).
+    /// Sent separately so reading it never delays the press. Never logged or stored.
+    #[serde(rename_all = "camelCase")]
+    Context {
+        thread_context: String,
+    },
     /// Accidental tap or the chord became a shortcut (Ctrl+Shift+T): discard.
     Cancel {
         t: u64,
@@ -106,6 +112,16 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
                 let target = crate::active_app::foreground_app_id();
                 overlay::show(&app);
                 send(DictationEvent::Press { t, app: target });
+                if crate::selection::enabled() {
+                    let outbound = state.outbound.clone();
+                    std::thread::spawn(move || {
+                        if let Some(text) = crate::selection::capture() {
+                            let _ = outbound.send(Outbound::Event(DictationEvent::Context {
+                                thread_context: text,
+                            }));
+                        }
+                    });
+                }
                 // Auto-release after MAX_SESSION_SECONDS unless this hold already ended.
                 let my_gen = generation.fetch_add(1, Ordering::SeqCst) + 1;
                 let (app2, gen2) = (app.clone(), generation.clone());

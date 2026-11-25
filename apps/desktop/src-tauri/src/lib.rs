@@ -14,6 +14,7 @@ mod dictation;
 mod hotkey;
 mod insert;
 mod overlay;
+mod selection;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -115,6 +116,7 @@ pub fn run() {
             dictation::timing_append,
             overlay::overlay_hide,
             overlay::overlay_resize,
+            selection::set_reply_context,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sayvox");

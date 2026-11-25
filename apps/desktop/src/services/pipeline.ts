@@ -13,6 +13,8 @@ export type DictationEvent =
   | { kind: "press"; t: number; app?: string }
   | { kind: "release"; t: number; audioSeconds: number }
   | { kind: "cancel"; t: number }
+  /** Opt-in reply context: text selected in the target app at press (T063). */
+  | { kind: "context"; threadContext: string }
   | { kind: "audioError"; code: string };
 
 export type InsertOutcome = "inserted" | "blockedElevated" | { failed: { reason: string } };
@@ -56,6 +58,8 @@ interface Active {
   ended: boolean;
   app: string;
   mode: Mode;
+  /** Never logged or stored; sent once with the rewrite and then dropped. */
+  threadContext?: string;
 }
 
 function errorCode(err: unknown): string {
@@ -103,6 +107,9 @@ export class DictationPipeline {
         return this.release(ev.t, ev.audioSeconds);
       case "cancel":
         return this.cancel();
+      case "context":
+        if (this.active && !this.active.ended) this.active.threadContext = ev.threadContext;
+        return;
       case "audioError":
         this.fail(errorFor(ev.code));
         this.cancel();
@@ -189,10 +196,18 @@ export class DictationPipeline {
       this.show({ kind: "rewriting", text: "", mode: a.mode });
       try {
         const done = await this.deps.rewrite(
-          { sessionId: session.sessionId, transcript: result.text, mode: a.mode, targetApp: a.app },
+          {
+            sessionId: session.sessionId,
+            transcript: result.text,
+            mode: a.mode,
+            targetApp: a.app,
+            // Reply context only matters for email; the server ignores it for chat apps.
+            ...(a.mode === "email" && a.threadContext ? { threadContext: a.threadContext } : {}),
+          },
           (soFar) => this.show({ kind: "rewriting", text: soFar, mode: a.mode }),
         );
         if (done.text) text = done.text;
+        delete a.threadContext;
       } catch {
         // Never lose the words: paste the cleaned transcript instead (T055).
         notice = "Inserted your original text; AI rewrite was unavailable.";
