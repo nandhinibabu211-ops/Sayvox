@@ -6,7 +6,6 @@
 !**/.env.example
 .git
 apps/desktop
-apps/web
 eval
 infra
 specs

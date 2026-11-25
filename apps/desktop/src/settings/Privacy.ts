@@ -1,10 +1,11 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { canConfirmDeletion, deleteAccount, DELETE_CONFIRMATION } from "../services/account";
 import { credentialSessionStore } from "../services/session";
+import { WEB_ORIGIN } from "../services/webOrigin";
 import { errorMessage, h, type SettingsContext } from "./dom";
 
-export const PRIVACY_URL = "https://sayvox-app-2026.web.app/privacy";
-export const TERMS_URL = "https://sayvox-app-2026.web.app/terms";
+export const PRIVACY_URL = `${WEB_ORIGIN}/privacy`;
+export const TERMS_URL = `${WEB_ORIGIN}/terms`;
 
 /**
  * Settings → Privacy & Account (T074, Story 5.6 AC 1 / 5.7 AC 2): the same plain-language

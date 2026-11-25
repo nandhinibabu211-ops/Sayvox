@@ -2,22 +2,29 @@ import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  getAuth,
+  browserPopupRedirectResolver,
+  initializeAuth,
   inMemoryPersistence,
-  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   type User,
 } from "firebase/auth";
+import { webConfig } from "./config";
 import { deepLink, parseHandoff, sendToDesktop } from "./handoff";
 
-// Public Firebase web config (not secrets). Set in apps/web/.env for builds.
+// Identity Platform client config (public; see config.ts).
+const config = webConfig();
 const firebase = initializeApp({
-  apiKey: import.meta.env["VITE_FIREBASE_API_KEY"] as string,
-  authDomain: import.meta.env["VITE_FIREBASE_AUTH_DOMAIN"] as string,
+  apiKey: config.apiKey,
+  authDomain: config.authDomain,
   projectId: "sayvox-app-2026",
 });
-const auth = getAuth(firebase);
+// In-memory only from the start: tokens go to the desktop app and are never kept in this
+// browser (and the SDK never touches IndexedDB).
+const auth = initializeAuth(firebase, {
+  persistence: inMemoryPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const status = $<HTMLParagraphElement>("status");
@@ -61,7 +68,6 @@ async function finish(user: User): Promise<void> {
 async function run(action: () => Promise<{ user: User }>): Promise<void> {
   buttons().forEach((b) => (b.disabled = true));
   try {
-    await setPersistence(auth, inMemoryPersistence);
     await finish((await action()).user);
   } catch (err) {
     const code = (err as { code?: string }).code ?? "";
@@ -82,9 +88,16 @@ async function run(action: () => Promise<{ user: User }>): Promise<void> {
 const email = () => $<HTMLInputElement>("email").value.trim();
 const password = () => $<HTMLInputElement>("password").value;
 
-$<HTMLButtonElement>("google").addEventListener("click", () => {
-  void run(() => signInWithPopup(auth, new GoogleAuthProvider()));
-});
+// Google sign-in needs an OAuth consent screen + client in Identity Platform (owner step);
+// until VITE_GOOGLE_SIGNIN=true the button is hidden rather than failing on click.
+const googleButton = $<HTMLButtonElement>("google");
+if (config.googleSignIn) {
+  googleButton.addEventListener("click", () => {
+    void run(() => signInWithPopup(auth, new GoogleAuthProvider()));
+  });
+} else {
+  googleButton.remove();
+}
 $<HTMLFormElement>("email-form").addEventListener("submit", (e) => {
   e.preventDefault();
   void run(() => signInWithEmailAndPassword(auth, email(), password()));

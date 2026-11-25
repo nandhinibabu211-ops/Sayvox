@@ -12,8 +12,13 @@ use std::io::Read;
 use std::time::{Duration, Instant};
 use tiny_http::{Header, Method, Request, Response, Server};
 
-/// Hosted sign-in page origin (Firebase Hosting, ADR-009).
-pub const SIGNIN_ORIGIN: &str = "https://sayvox-app-2026.web.app";
+/// Hosted sign-in page origin: the web pages' Cloud Run service. Release builds set
+/// `SAYVOX_WEB_ORIGIN` at compile time; other builds use staging. Must match `VITE_WEB_ORIGIN`
+/// and the opener allow-list in capabilities/default.json.
+pub const SIGNIN_ORIGIN: &str = match option_env!("SAYVOX_WEB_ORIGIN") {
+    Some(origin) => origin,
+    None => "https://sayvox-staging-web-264655228768.us-west1.run.app",
+};
 pub const CALLBACK_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_BODY_BYTES: u64 = 16 * 1024;
 

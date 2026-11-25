@@ -76,6 +76,24 @@ How it was created (repeat in this order for a rebuild):
 5. Build the image with Cloud Build, full `terraform apply -var initial_image=<image>`,
    `gcloud run jobs execute sayvox-staging-migrate --wait`, smoke test.
 
+**Sign-in (2026-11-26, Google Cloud, no Firebase):**
+- Identity Platform initialized on the project; **email/password** enabled. Authorized
+  domains: the staging web origin, `sayvox-app-2026.firebaseapp.com` (Identity Platform's
+  auth handler) and `localhost`.
+- Browser API key "Sayvox sign-in (browser, staging)", restricted to Identity Toolkit and
+  Secure Token (no website restriction: the desktop app refreshes tokens with it). Stored as
+  the GitHub staging variable `FIREBASE_WEB_API_KEY`.
+- Web pages: Cloud Run `sayvox-staging-web` from `apps/web/Dockerfile`
+  (`--build-arg VITE_FIREBASE_API_KEY=...`). GitHub staging variable `WEB_ORIGIN`.
+- **Google sign-in (owner, later):** Google Cloud console → Google Auth Platform → configure
+  the consent screen and create a *Web application* OAuth client (authorized JavaScript
+  origin = the web origin, redirect URI = `https://sayvox-app-2026.firebaseapp.com/__/auth/handler`),
+  then Identity Platform → Providers → Google with that client. Rebuild the web image with
+  `--build-arg VITE_GOOGLE_SIGNIN=true`.
+- The unused "Browser key (auto created by Firebase)" (about 30 APIs) was deleted on
+  2026-11-26 at the owner's request; restorable until 2026-12-26 with
+  `gcloud services api-keys undelete`.
+
 **Still to do for staging:**
 - Provider keys (owner, later): add versions to `sayvox-staging-elevenlabs-api-key` and
   `sayvox-staging-openrouter-api-key`, set `provider_keys_ready = true`, apply. Until then

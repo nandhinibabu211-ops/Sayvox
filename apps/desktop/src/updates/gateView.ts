@@ -1,8 +1,9 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { ClientConfigWatcher, ServiceGate } from "./clientConfig";
 import { rustUpdater } from "./runtime";
+import { WEB_ORIGIN } from "../services/webOrigin";
 
-export const INSTALL_URL = "https://sayvox-app-2026.web.app/install";
+export const INSTALL_URL = `${WEB_ORIGIN}/install`;
 
 /**
  * Settings window side of the forced-update and kill-switch states (front-end spec §3.5):
