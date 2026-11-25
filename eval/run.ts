@@ -60,6 +60,7 @@ for (const model of models) {
       mode: c.mode,
       targetApp: c.targetApp,
       transcript: c.transcript,
+      threadContext: c.threadContext,
     });
     try {
       const r = await complete(model, messages, { apiKey });

@@ -1,10 +1,9 @@
-import { metrics, type Histogram } from "@opentelemetry/api";
+import { metrics, type Counter, type Histogram } from "@opentelemetry/api";
 import type { FastifyInstance } from "fastify";
 
 /**
- * Metric instruments (architecture §16). More are added by the stories that produce them:
- * session_start_ms (2.4), release_to_insert_ms / stt_commit_ms (2.5), llm_ttft_ms and
- * llm_fallback_total (3.2).
+ * Metric instruments (architecture section 16). Alerts and dashboards on them live in
+ * infra/observability (T092); keep names in sync with infra/observability/main.tf.
  */
 let httpDuration: Histogram | undefined;
 
@@ -51,12 +50,43 @@ export function sttCommitDuration(): Histogram {
   return sttCommit;
 }
 
+let llmTtft: Histogram | undefined;
+let rewrites: Counter | undefined;
+let sessionEnds: Counter | undefined;
+
+/** Time to first rewrite token (alerting uses the fallback share, T092). */
+export function llmTtftDuration(): Histogram {
+  llmTtft ??= metrics.getMeter("sayvox-api").createHistogram("llm_ttft_ms", {
+    unit: "ms",
+    advice: { explicitBucketBoundaries: LATENCY_BUCKETS },
+  });
+  return llmTtft;
+}
+
+/** Every rewrite by outcome: ok, fallback (a fallback model answered) or error (raw insert). */
+export function rewriteCounter(): Counter {
+  rewrites ??= metrics.getMeter("sayvox-api").createCounter("rewrite_total");
+  return rewrites;
+}
+
+/**
+ * Every ended session by insert result and whether Scribe had to reconnect (the
+ * disconnect signal in architecture section 16).
+ */
+export function sessionEndCounter(): Counter {
+  sessionEnds ??= metrics.getMeter("sayvox-api").createCounter("session_end_total");
+  return sessionEnds;
+}
+
 /** Test hook: drop cached instruments after swapping the global meter provider. */
 export function resetInstruments(): void {
   httpDuration = undefined;
   sessionStart = undefined;
   releaseToInsert = undefined;
   sttCommit = undefined;
+  llmTtft = undefined;
+  rewrites = undefined;
+  sessionEnds = undefined;
 }
 
 /**

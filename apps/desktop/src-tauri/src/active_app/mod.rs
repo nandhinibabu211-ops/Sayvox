@@ -5,32 +5,9 @@
 //! apps in a browser, a virtual id (`web:gmail`). Window titles are read to recognise web
 //! apps and then dropped; they never reach the web side or the server (Constitution I).
 
+pub mod browser_map;
 #[cfg(windows)]
 pub mod windows;
-
-const BROWSERS: &[&str] = &[
-    "chrome.exe",
-    "msedge.exe",
-    "firefox.exe",
-    "brave.exe",
-    "opera.exe",
-    "vivaldi.exe",
-    "arc.exe",
-];
-
-/// Title fragment (lower-case) → virtual app id, checked in order.
-const WEB_APPS: &[(&str, &str)] = &[
-    ("gmail", "web:gmail"),
-    ("outlook", "web:outlook"),
-    ("slack", "web:slack"),
-    ("microsoft teams", "web:teams"),
-    ("| teams", "web:teams"),
-    ("chatgpt", "web:chatgpt"),
-    ("claude", "web:claude"),
-    ("gemini", "web:gemini"),
-    ("whatsapp", "web:whatsapp"),
-    ("discord", "web:discord"),
-];
 
 /// Map an exe path + window title to the app id the mode resolver uses.
 pub fn app_id(exe_path: &str, title: &str) -> String {
@@ -39,10 +16,9 @@ pub fn app_id(exe_path: &str, title: &str) -> String {
         .next()
         .unwrap_or("")
         .to_ascii_lowercase();
-    if BROWSERS.contains(&exe.as_str()) {
-        let t = title.to_lowercase();
-        if let Some((_, id)) = WEB_APPS.iter().find(|(frag, _)| t.contains(frag)) {
-            return (*id).to_string();
+    if browser_map::BROWSERS.contains(&exe.as_str()) {
+        if let Some(id) = browser_map::web_app(title) {
+            return id.to_string();
         }
     }
     // Keep ids to the server's TargetApp charset ([A-Za-z0-9._:- ], ≤ 200).
@@ -71,9 +47,46 @@ pub fn foreground_app_id() -> String {
     }
 }
 
+/// App ids of running apps for Settings → Modes "Add app" (exe names only, sorted, unique).
+pub fn running_app_ids(exe_paths: &[String]) -> Vec<String> {
+    let mut ids: Vec<String> = exe_paths
+        .iter()
+        .map(|p| app_id(p, ""))
+        .filter(|id| id != "unknown" && id != "sayvox.exe" && id != "sayvox-desktop.exe")
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+#[tauri::command]
+pub fn list_running_apps() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        running_app_ids(&windows::running_exes())
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::app_id;
+    use super::{app_id, running_app_ids};
+
+    #[test]
+    fn running_apps_are_unique_sorted_ids_without_sayvox() {
+        let paths = [
+            r"C:\x\Slack.exe",
+            r"C:\y\cursor.exe",
+            r"C:\x\slack.exe",
+            r"C:\p\Sayvox.exe",
+            "",
+        ]
+        .map(String::from);
+        assert_eq!(running_app_ids(&paths), vec!["cursor.exe", "slack.exe"]);
+    }
 
     #[test]
     fn desktop_apps_use_their_exe_name() {

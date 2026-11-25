@@ -1,4 +1,5 @@
 import type { Mode } from "@sayvox/shared";
+import { EMAIL_CASES } from "./email";
 
 /**
  * Eval cases (T056). These 32 are SYNTHETIC text transcripts written to cover the rules
@@ -17,6 +18,8 @@ export interface EvalCase {
   requiredFacts: string[];
   /** Text that must NOT appear (invented facts, obeyed injections, fillers…). */
   forbidden?: string[];
+  /** Email replies: the message being replied to (sent as <thread>). */
+  threadContext?: string;
   /** Prompt mode: headings that must appear. */
   sections?: string[];
   injection?: boolean;
@@ -26,7 +29,7 @@ const P = "cursor.exe";
 const G = "web:gmail";
 const S = "slack.exe";
 
-export const CASES: EvalCase[] = [
+const BASE_CASES: EvalCase[] = [
   // ── Prompt mode ───────────────────────────────────────────────────────────
   {
     id: "prompt-login-bug",
@@ -378,3 +381,5 @@ export const CASES: EvalCase[] = [
     forbidden: ["Why did", "knock knock"],
   },
 ];
+
+export const CASES: EvalCase[] = [...BASE_CASES, ...EMAIL_CASES];

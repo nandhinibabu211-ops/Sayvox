@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket as NodeWebSocket } from "ws";
 import { startMockScribe, type MockScribe } from "../../test/mocks/scribeServer";
-import { ScribeError, ScribeSession, scribeUrl, toBase64 } from "./scribeClient";
+import { ScribeError, ScribeSession, STREAM_PROTOCOL, streamUrl, toBase64 } from "./scribeClient";
 
 let mock: MockScribe;
+const TICKET_1 = "a".repeat(43);
+const TICKET_2 = "b".repeat(43);
 const WS = NodeWebSocket as unknown as typeof WebSocket;
 const pcm = (ms = 160) => new Int16Array((16_000 * ms) / 1000).fill(100).buffer;
 
 function session(extra: Partial<ConstructorParameters<typeof ScribeSession>[0]> = {}) {
-  return new ScribeSession({ token: "sutkn_1", url: mock.url, WebSocketImpl: WS, ...extra });
+  return new ScribeSession({ ticket: TICKET_1, url: mock.url, WebSocketImpl: WS, ...extra });
 }
 
 beforeEach(async () => {
@@ -18,27 +20,12 @@ afterEach(async () => {
   await mock.close();
 });
 
-describe("scribeUrl", () => {
-  it("uses the verified query parameters", () => {
-    const u = new URL(
-      scribeUrl(
-        "wss://api.elevenlabs.io/v1/speech-to-text/realtime",
-        "t1",
-        ["Zoho", "Zia"],
-        "en-IN",
-      ),
+describe("streamUrl", () => {
+  it("targets the API proxy, never ElevenLabs, with no ticket in the URL", () => {
+    expect(streamUrl("https://sayvox-prod-api-1.us-east4.run.app")).toBe(
+      "wss://sayvox-prod-api-1.us-east4.run.app/v1/stream",
     );
-    expect(u.searchParams.get("model_id")).toBe("scribe_v3_live");
-    expect(u.searchParams.get("audio_format")).toBe("pcm_16000");
-    expect(u.searchParams.get("commit_strategy")).toBe("manual");
-    expect(u.searchParams.get("language_code")).toBe("en");
-    expect(u.searchParams.getAll("keyterms")).toEqual(["Zoho", "Zia"]);
-  });
-
-  it("omits language_code for auto", () => {
-    expect(new URL(scribeUrl("wss://x/y", "t", [], "auto")).searchParams.has("language_code")).toBe(
-      false,
-    );
+    expect(streamUrl("http://localhost:8787")).toBe("ws://localhost:8787/v1/stream");
   });
 });
 
@@ -66,7 +53,8 @@ describe("ScribeSession against the mock server (T024/T035)", () => {
     expect(c.chunks.map((x) => x.commit)).toEqual([false, false, false, true]);
     expect(c.chunks.every((x) => x.sampleRate === 16_000)).toBe(true);
     expect(c.chunks[0]!.bytes).toBe(5_120);
-    expect(c.url.searchParams.get("token")).toBe("sutkn_1");
+    expect(c.protocols).toEqual([STREAM_PROTOCOL, TICKET_1]);
+    expect(c.url.search).toBe("");
   });
 
   it("queues chunks until session_started, keeping order", async () => {
@@ -80,23 +68,23 @@ describe("ScribeSession against the mock server (T024/T035)", () => {
 
   it("retries once on a mid-utterance drop and replays all buffered audio", async () => {
     mock.script.push({ dropAfterChunks: 2 });
-    const refreshToken = vi.fn(async () => "sutkn_2");
-    const s = session({ refreshToken });
+    const refreshTicket = vi.fn(async () => TICKET_2);
+    const s = session({ refreshTicket });
     s.start();
     s.sendChunk(pcm());
     s.sendChunk(pcm());
-    await vi.waitFor(() => expect(refreshToken).toHaveBeenCalled());
+    await vi.waitFor(() => expect(refreshTicket).toHaveBeenCalled());
     s.sendChunk(pcm());
     const r = await s.commit();
     expect(r).toMatchObject({ text: mock.transcript, retried: true });
     const second = mock.connections[1]!;
-    expect(second.url.searchParams.get("token")).toBe("sutkn_2");
+    expect(second.protocols).toEqual([STREAM_PROTOCOL, TICKET_2]);
     expect(second.chunks.filter((c) => c.bytes > 0)).toHaveLength(3);
   });
 
   it("fails after a second drop", async () => {
     mock.script.push({ dropAfterChunks: 1 }, { dropAfterChunks: 1 });
-    const s = session({ refreshToken: async () => "sutkn_2" });
+    const s = session({ refreshTicket: async () => TICKET_2 });
     s.start();
     s.sendChunk(pcm());
     const commit = s.commit();
@@ -105,15 +93,15 @@ describe("ScribeSession against the mock server (T024/T035)", () => {
 
   it("does not retry fatal provider errors", async () => {
     mock.script.push({ fatal: "quota_exceeded" });
-    const refreshToken = vi.fn(async () => "x");
-    const s = session({ refreshToken });
+    const refreshTicket = vi.fn(async () => "x");
+    const s = session({ refreshTicket });
     s.start();
     s.sendChunk(pcm());
     await expect(s.commit()).rejects.toMatchObject({
       failure: "fatal",
       providerType: "quota_exceeded",
     });
-    expect(refreshToken).not.toHaveBeenCalled();
+    expect(refreshTicket).not.toHaveBeenCalled();
   });
 
   it("times out when the commit is never answered", async () => {

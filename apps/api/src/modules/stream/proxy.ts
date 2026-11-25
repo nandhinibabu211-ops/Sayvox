@@ -1,0 +1,194 @@
+import type { FastifyInstance } from "fastify";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
+import WebSocket, { WebSocketServer, type RawData } from "ws";
+import { scribeUpstreamUrl } from "../../lib/elevenlabs/realtime";
+import type { ChargeAudio } from "./charge";
+import { COMMIT_MESSAGE, parseAudioChunk } from "./meter";
+import type { StreamTicketData } from "./ticket";
+
+/**
+ * `GET /v1/stream` (WebSocket): the desktop app's speech-to-text stream, proxied to
+ * ElevenLabs Scribe so the API meters every second of audio itself (audit SEC-03).
+ *
+ * - Auth: subprotocols `["sayvox.stream.v1", <ticket>]` from /v1/session/start. The ticket
+ *   is in a header, never the URL (which Cloud Run logs), and works exactly once.
+ * - Messages pass through unchanged in both directions (contracts/scribe-realtime.md), so
+ *   the client speaks the Scribe protocol. Only `input_audio_chunk` is accepted upstream.
+ * - Metering: 16 kHz PCM16 bytes / 32 000 = seconds. Audio beyond the session's
+ *   `maxSessionSeconds` is not forwarded; Scribe is asked to commit instead.
+ * - Charging: once, when either side closes, with the metered seconds.
+ * Audio and transcripts are never logged or stored (Constitution I).
+ */
+export const STREAM_PATH = "/v1/stream";
+export const STREAM_PROTOCOL = "sayvox.stream.v1";
+
+export interface StreamDeps {
+  takeTicket: (ticket: string) => Promise<StreamTicketData | null>;
+  charge: ChargeAudio;
+  /** Upstream Scribe URL for a ticket (tests point it at a mock server). */
+  upstreamUrl?: (t: StreamTicketData) => string;
+  /** Close a stream that sends nothing for this long (default 30 s). */
+  idleMs?: number;
+  now?: () => Date;
+}
+
+function reject(socket: Duplex, status: 400 | 401 | 503): void {
+  const text = { 400: "Bad Request", 401: "Unauthorized", 503: "Service Unavailable" }[status];
+  socket.write(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+  socket.destroy();
+}
+
+/** Close codes a server may send on to the client (1006 etc. are reserved). */
+const passCode = (code: number) => (code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011);
+
+export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): void {
+  const now = deps.now ?? (() => new Date());
+  const upstreamUrl =
+    deps.upstreamUrl ??
+    ((t: StreamTicketData) =>
+      scribeUpstreamUrl({
+        token: t.scribeToken,
+        keyterms: t.keyterms,
+        languageHint: t.languageHint,
+      }));
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 512 * 1024,
+    handleProtocols: (offered) => (offered.has(STREAM_PROTOCOL) ? STREAM_PROTOCOL : false),
+  });
+
+  // Open streams and in-flight charges, so shutdown can charge every stream before the
+  // database closes (a deploy must not lose usage).
+  const active = new Set<() => void>();
+  const pending = new Set<Promise<unknown>>();
+
+  function bridge(client: WebSocket, t: StreamTicketData): void {
+    let seconds = 0;
+    let capped = false;
+    let finished = false;
+    const queue: string[] = [];
+    const upstream = new WebSocket(upstreamUrl(t), { handshakeTimeout: 5_000 });
+
+    const sendUp = (msg: string) => {
+      if (upstream.readyState === WebSocket.OPEN) upstream.send(msg);
+      else if (upstream.readyState === WebSocket.CONNECTING) queue.push(msg);
+    };
+
+    let idle: NodeJS.Timeout | undefined;
+    const touch = () => {
+      if (idle) clearTimeout(idle);
+      idle = setTimeout(() => finish(1000, 1000), deps.idleMs ?? 30_000);
+    };
+    // Hard stop: the cap plus slack for the commit round trip.
+    const hard = setTimeout(() => finish(1000, 1000), t.maxSessionSeconds * 1000 + 60_000);
+    touch();
+    const stop = () => finish(1001, 1000);
+    active.add(stop);
+
+    function finish(clientCode: number, upstreamCode: number): void {
+      if (finished) return;
+      finished = true;
+      active.delete(stop);
+      if (idle) clearTimeout(idle);
+      clearTimeout(hard);
+      queue.length = 0;
+      for (const [ws, code] of [
+        [client, clientCode],
+        [upstream, upstreamCode],
+      ] as const) {
+        if (ws.readyState === WebSocket.OPEN) ws.close(code);
+        else if (ws.readyState === WebSocket.CONNECTING) ws.terminate();
+      }
+      app.log.info(
+        { sessionId: t.sessionId, audioSeconds: Math.round(seconds * 100) / 100, capped },
+        "stream ended",
+      );
+      const charging = deps
+        .charge({
+          userId: t.userId,
+          sessionId: t.sessionId,
+          seconds,
+          keytermsUsed: t.keytermsUsed,
+          at: now(),
+        })
+        .catch((err: unknown) =>
+          app.log.error(
+            { errName: (err as Error).name, sessionId: t.sessionId },
+            "stream charge failed",
+          ),
+        )
+        .finally(() => pending.delete(charging));
+      pending.add(charging);
+    }
+
+    upstream.on("open", () => {
+      for (const m of queue) upstream.send(m);
+      queue.length = 0;
+    });
+    upstream.on("message", (data: RawData, isBinary: boolean) => {
+      if (client.readyState !== WebSocket.OPEN) return;
+      client.send(isBinary ? data : data.toString());
+    });
+    upstream.on("close", (code: number) => finish(passCode(code), 1000));
+    upstream.on("error", () => finish(1011, 1000));
+    upstream.on("unexpected-response", () => finish(1011, 1000));
+
+    client.on("message", (data: RawData, isBinary: boolean) => {
+      if (finished) return;
+      const raw = isBinary ? null : data.toString();
+      const chunk = raw === null ? null : parseAudioChunk(raw);
+      if (!chunk || raw === null) {
+        finish(1008, 1000);
+        return;
+      }
+      touch();
+      if (capped) return;
+      if (seconds + chunk.seconds > t.maxSessionSeconds + 1e-6) {
+        // Over the cap: forward nothing more, finalize what Scribe already has.
+        capped = true;
+        sendUp(COMMIT_MESSAGE);
+        return;
+      }
+      seconds += chunk.seconds;
+      sendUp(raw);
+    });
+    client.on("close", () => finish(1000, 1000));
+    client.on("error", () => finish(1011, 1000));
+  }
+
+  const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    socket.on("error", () => socket.destroy());
+    if ((req.url ?? "").split("?")[0] !== STREAM_PATH) {
+      reject(socket, 400);
+      return;
+    }
+    const offered = String(req.headers["sec-websocket-protocol"] ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const ticket = offered.find((p) => p !== STREAM_PROTOCOL);
+    if (!offered.includes(STREAM_PROTOCOL) || !ticket) {
+      reject(socket, 401);
+      return;
+    }
+    deps.takeTicket(ticket).then(
+      (t) => {
+        if (!t) return reject(socket, 401);
+        wss.handleUpgrade(req, socket, head, (client) => bridge(client, t));
+      },
+      () => reject(socket, 503),
+    );
+  };
+
+  app.server.on("upgrade", onUpgrade);
+  // preClose, not onClose: the HTTP server only finishes closing once these sockets are
+  // gone, and onClose hooks run after that.
+  app.addHook("preClose", async () => {
+    app.server.off("upgrade", onUpgrade);
+    for (const stop of [...active]) stop();
+    await Promise.allSettled([...pending]);
+    for (const c of wss.clients) c.terminate();
+    await new Promise<void>((r) => wss.close(() => r()));
+  });
+}
