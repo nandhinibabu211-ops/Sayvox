@@ -2,9 +2,9 @@ import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
-  getAuth,
+  browserPopupRedirectResolver,
+  initializeAuth,
   inMemoryPersistence,
-  setPersistence,
   signInWithEmailAndPassword,
   signInWithPopup,
   type User,
@@ -19,7 +19,12 @@ const firebase = initializeApp({
   authDomain: config.authDomain,
   projectId: "sayvox-app-2026",
 });
-const auth = getAuth(firebase);
+// In-memory only from the start: tokens go to the desktop app and are never kept in this
+// browser (and the SDK never touches IndexedDB).
+const auth = initializeAuth(firebase, {
+  persistence: inMemoryPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+});
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const status = $<HTMLParagraphElement>("status");
@@ -63,7 +68,6 @@ async function finish(user: User): Promise<void> {
 async function run(action: () => Promise<{ user: User }>): Promise<void> {
   buttons().forEach((b) => (b.disabled = true));
   try {
-    await setPersistence(auth, inMemoryPersistence);
     await finish((await action()).user);
   } catch (err) {
     const code = (err as { code?: string }).code ?? "";
