@@ -39,7 +39,9 @@ resource "google_cloud_run_v2_service" "api" {
   template {
     service_account                  = google_service_account.runtime.email
     max_instance_request_concurrency = 80
-    timeout                          = "60s" # rewrite streams end within 8 s; SSE heartbeats keep them alive
+
+    # Also the longest a /v1/stream WebSocket may live: max session (300 s) + commit slack.
+    timeout = "600s"
 
     scaling {
       min_instance_count = var.min_instances

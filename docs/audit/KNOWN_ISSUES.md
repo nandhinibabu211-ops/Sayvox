@@ -5,7 +5,6 @@ refer to SECURITY_AUDIT.md.
 
 | ID | Severity | Issue | Owner action / fix |
 | --- | --- | --- | --- |
-| KI-01 | High | **Quota bypass** (SEC-03): usage is client-reported; a modified client can stream unmetered audio | Choose a remediation in SECURITY_AUDIT.md SEC-03; until then keep a low ElevenLabs billing cap |
 | KI-02 | High (blocker) | Updater public key is a placeholder; no release can be built | Generate the key pair (release.md step 2) |
 | KI-03 | High (blocker) | Privacy policy and terms are drafts without legal review | Legal review, then remove the draft banner |
 | KI-04 | High (blocker) | Nothing is deployed: Cloud Run / Cloud SQL APIs disabled, no buckets, no secrets, no Identity Platform configuration verified | deploy.md one-time setup |
@@ -20,11 +19,14 @@ refer to SECURITY_AUDIT.md.
 | KI-13 | Low | ElevenLabs usage API: STT series label unconfirmed; endpoint marked deprecated (research R11) | Check on the first reconcile run |
 | KI-14 | Low | Account deletion SCANs Redis by pattern; slow on a large keyspace | Fine at launch scale; index user keys later |
 | KI-15 | Low | Plan/suspension changes take up to 60 s (user cache) | Accepted |
+| KI-16 | Medium | Audio proxy (ADR-011) adds a network hop; latency and Cloud Run bandwidth cost not yet measured | Include in the T040 timing run and the load test |
+| KI-17 | Low | An API instance restart ends the dictations it carries (charged first); the client retries once on a new session | Accepted; Cloud Run drains on deploy |
 
 ## Fixed in this audit
 
 | Fix | Files |
 | --- | --- |
+| SEC-03: audio metered by a `/v1/stream` proxy; usage no longer client-reported (ADR-011) | `modules/stream/*`, `modules/session/routes.ts`, `drizzle/0004_session_metered_at.sql`, desktop `scribeClient.ts`, CSP, Terraform timeout, privacy page, tests |
 | SEC-01: rewrites capped at 2 per session | `modules/limits/store.ts`, `modules/rewrite/routes.ts`, `server.ts`, `lib/redis/keys.ts`, tests |
 | SEC-02: `users.email` no longer UNIQUE | `schema.ts`, `drizzle/0003_users_email_not_unique.sql`, `test/integration/audit-fixes.test.ts` |
 | SEC-04: release CSP pinned to the API origin | `.github/workflows/release.yml` |

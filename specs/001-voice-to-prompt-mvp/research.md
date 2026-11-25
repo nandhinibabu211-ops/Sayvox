@@ -15,6 +15,7 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
   - Billing counts every second of audio sent, **including silence**, so the client must stop streaming on release and never pre-open the mic stream to the provider.
   - Zero retention: `enable_logging=false`, **enterprise plans only**. On other plans ElevenLabs may log audio/transcripts; the privacy page (Story 5.6) must say so until an enterprise plan is in place.
   - Regional hosts exist (`api.us`, `api.eu.residency`, `api.in.residency`, `api.sg.residency`) — the India residency host is an option to evaluate for latency/DPDP.
+- **Superseded in part by ADR-011 (2026-11-25)**: the desktop no longer connects to ElevenLabs. The API keeps the single-use token, proxies the WebSocket at `/v1/stream` and meters the audio, because client-reported seconds let a modified client bypass the quota (audit SEC-03).
 - **Still open**: per-plan concurrency limit (see elevenlabs.io/docs/overview/models#concurrency-and-priority; confirm with ElevenLabs before Story 6.5).
 
 ## R2 — LLM gateway and model slugs (VERIFIED 2026-11-25, T019)

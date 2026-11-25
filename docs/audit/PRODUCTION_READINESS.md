@@ -16,15 +16,12 @@ production readiness is about the running system, and none of it has run for rea
 3. **Critical tests are blocked, not passed:** the whole user journey on Windows 10 and 11
    (T101), the Phase 1 and Phase 2 latency/quality gates (T040, T058), the Lemon comparison
    (no baseline exists), and the 3× peak load test (T098).
-4. **One open high-severity security issue:** server-side quota can be bypassed by a
-   modified client (SEC-03 / KI-01). It needs a product decision.
-5. **Legal:** privacy policy and terms are unreviewed drafts (KI-03).
+4. **Legal:** privacy policy and terms are unreviewed drafts (KI-03).
 
 ## Path to "ready after fixes"
 
 | Step | Who | Unblocks |
 | --- | --- | --- |
-| Decide SEC-03 remediation; implement it | owner decides, then code | security sign-off |
 | Generate the updater key pair; set GitHub secrets | owner | releases |
 | Pro price and limits; Razorpay plan (test mode first) | owner | billing tests |
 | Provider keys (staging, low caps); Identity Platform test users | owner | live tests |
@@ -41,8 +38,10 @@ production readiness is about the running system, and none of it has run for rea
   fmt/clippy/tests, API container build, Terraform validate: **pass**.
 - Security review of auth, authorization, validation, webhook, secrets, redaction, retention,
   deletion, telemetry: no open issue except those listed (SECURITY_AUDIT.md).
-- Three bugs fixed in this audit: rewrite cost loop (SEC-01, high), email uniqueness 500s
-  (SEC-02), release CSP (SEC-04), plus a dependency pin and a corrected quickstart.
+- Fixed in this audit: client-reported usage (SEC-03, high, now metered by an audio proxy,
+  ADR-011), rewrite cost loop (SEC-01, high), email uniqueness 500s (SEC-02), release CSP
+  (SEC-04), plus a dependency pin and a corrected quickstart. The proxy's extra latency is
+  unmeasured (KI-16).
 
 See IMPLEMENTATION_AUDIT.md, END_TO_END_TEST_REPORT.md, SECURITY_AUDIT.md,
 PERFORMANCE_REPORT.md and KNOWN_ISSUES.md for the evidence.

@@ -12,6 +12,8 @@ import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
 import { claimRewrite } from "./modules/limits/store";
+import { createAudioCharger } from "./modules/stream/charge";
+import { takeTicket } from "./modules/stream/ticket";
 import { closePool, pooledFetch } from "./lib/openrouter/pool";
 import { createOpenRouterClient } from "./lib/openrouter/stream";
 import { createDbRewriteStore } from "./modules/rewrite/store";
@@ -105,6 +107,10 @@ const app = buildApp({
     ...(razorpay ? { cancelSubscriptions: createSubscriptionCanceller(razorpay) } : {}),
   },
   usage: { db: database.db, redis, planMap, billingAvailable },
+  stream: {
+    takeTicket: (ticket) => takeTicket(redis, ticket),
+    charge: createAudioCharger(database.db, redis),
+  },
   billing: {
     db: database.db,
     redis,

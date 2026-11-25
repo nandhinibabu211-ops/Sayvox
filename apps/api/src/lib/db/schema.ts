@@ -160,6 +160,8 @@ export const sessions = pgTable(
     totalMs: integer("total_ms"),
     sttCommitMs: integer("stt_commit_ms"),
     releaseToInsertMs: integer("release_to_insert_ms"),
+    /** When the /v1/stream proxy charged this session's metered audio (once). */
+    meteredAt: ts("metered_at"),
     status: sessionStatus("status").notNull().default("started"),
     clientVersion: text("client_version"),
     region: text("region"),

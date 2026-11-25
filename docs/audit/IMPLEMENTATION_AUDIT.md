@@ -68,7 +68,7 @@ Legend: ✅ implemented + tested · 🟡 implemented, unverified against real in
 | T026 tray + overlay | ✅ | code + build; not run on a real desktop in this audit |
 | T027 `WH_KEYBOARD_LL` hotkey | ✅ | state-machine tests; real Windows behaviour unverified (T101) |
 | T028 audio capture | ✅ | DSP tests; real microphones unverified |
-| T029 limits | ✅ | quota/rate tests. **Design gap SEC-03:** usage is client-reported |
+| T029 limits | ✅ | quota/rate tests. SEC-03 (client-reported usage) fixed by the audio proxy, ADR-011 |
 | T030 ElevenLabs token client | ✅ | unit tests with fake fetch; never called with a real key |
 | T031–T033 session start/end/sweeper | ✅ | integration tests in CI |
 | T034–T036 token cache, Scribe client, cleanup | ✅ | unit tests against the mock Scribe server |

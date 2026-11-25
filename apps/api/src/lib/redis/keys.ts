@@ -28,6 +28,8 @@ export const keys = {
   settings: (userId: string) => `settings:${userId}`,
   /** Tombstone keyed by Identity Platform uid (Story 5.7): refuse its tokens after deletion. */
   accountDeleted: (authProviderId: string) => `deleted:${authProviderId}`,
+  /** One-time /v1/stream ticket -> session + Scribe token (TTL = Scribe token TTL). */
+  streamTicket: (ticket: string) => `stream:${ticket}`,
   /** Rewrites started for one session (capped, so a client can't loop paid LLM calls). */
   rewriteClaims: (sessionId: string) => `rw:${sessionId}`,
   clientConfig: () => "cfg:client",
