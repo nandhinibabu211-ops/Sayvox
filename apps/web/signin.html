@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Sign in to Sayvox</title>
+    <link rel="stylesheet" href="/src/signin.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Sign in to Sayvox</h1>
+      <p class="sub">Use the account you want on this Windows PC.</p>
+
+      <button id="google" type="button" class="primary">Continue with Google</button>
+
+      <form id="email-form">
+        <label>Email <input id="email" type="email" autocomplete="email" required /></label>
+        <label
+          >Password
+          <input
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            minlength="8"
+            required
+        /></label>
+        <div class="row">
+          <button type="submit">Sign in</button>
+          <button id="create" type="button" class="link">Create account</button>
+        </div>
+      </form>
+
+      <p class="legal">
+        By continuing you agree to the
+        <a href="/terms" target="_blank" rel="noopener">terms</a> and the
+        <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>.
+      </p>
+
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="/src/signin.ts"></script>
+  </body>
+</html>

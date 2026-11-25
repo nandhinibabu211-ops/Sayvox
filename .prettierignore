@@ -1,0 +1,15 @@
+node_modules
+dist
+.turbo
+coverage
+pnpm-lock.yaml
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
+apps/desktop/src-tauri/icons
+
+# Planning docs are hand-formatted; don't reflow them.
+docs
+specs
+.specify
+.bmad-core
+*.md

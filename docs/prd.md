@@ -6,7 +6,7 @@
 ## 1. Goals and Background Context
 
 ### Goals
-- Let users dictate anywhere on macOS and Windows with a single hold-to-talk hotkey (Ctrl+Shift).
+- Let users dictate anywhere on Windows with a single hold-to-talk hotkey (Ctrl+Shift).
 - Deliver plain dictation from key release to inserted text in **< 1 s**.
 - Deliver structured Prompt and Email/Slack rewrites in **1.5–3 s p95**.
 - Match or beat Lemon accuracy on a 30+ phrase test set including Indian English.
@@ -24,7 +24,7 @@ Knowledge workers increasingly "write" to AI tools and colleagues all day. OS di
 ## 2. Requirements
 
 ### Functional Requirements
-- **FR1:** The client registers a global hold-to-talk hotkey (default Ctrl+Shift) on macOS and Windows; pressing starts capture, releasing ends it.
+- **FR1:** The client registers a global hold-to-talk hotkey (default Ctrl+Shift) on Windows 10/11; pressing starts capture, releasing ends it.
 - **FR2:** On hotkey down the client calls `POST /v1/session/start` and receives a session id, a single-use Scribe token and the user's keyterms. A token is pre-fetched in the background so one is ready before the next press.
 - **FR3:** The client captures microphone audio as 16 kHz mono 16-bit PCM and streams it to Scribe v3 Live in 100–250 ms chunks.
 - **FR4:** The overlay ("notch") shows recording state and live partial transcripts while the user speaks.
@@ -35,7 +35,7 @@ Knowledge workers increasingly "write" to AI tools and colleagues all day. OS di
 - **FR9:** The backend selects the system prompt by mode/app and maps the user's preset (Fastest / Balanced / Cheapest) to an ordered model list sent to OpenRouter with `stream: true`.
 - **FR10:** If an LLM attempt fails or misses a 1.5 s first-token deadline, the backend falls over to the next model in the preset.
 - **FR11:** Streamed tokens fill the overlay preview as they arrive.
-- **FR12:** On completion the client saves the clipboard, writes the result, sends Cmd+V / Ctrl+V to the focused app and restores the clipboard.
+- **FR12:** On completion the client saves the clipboard, writes the result, sends Ctrl+V to the focused app and restores the clipboard.
 - **FR13:** A "review before insert" setting holds the result in the overlay until the user presses Enter (or Esc to discard).
 - **FR14:** If Scribe drops mid-utterance the client keeps buffered audio and retries once on a new token.
 - **FR15:** If all rewrite attempts fail the client pastes the raw transcript, so no words are lost.
@@ -61,7 +61,7 @@ Knowledge workers increasingly "write" to AI tools and colleagues all day. OS di
 - **NFR7 Scalability:** stateless backend scaled horizontally; audio never touches backend.
 - **NFR8 Reliability:** crash-free sessions > 99.5 %; API error rate < 1 %; Scribe disconnects < 1 %; LLM fallback < 5 %.
 - **NFR9 Cost:** ~$1.06 light / ~$3.82 heavy user per month on Balanced preset.
-- **NFR10 Distribution:** macOS universal `.dmg` signed with a self-signed certificate (not notarized); Windows `.msi`/`.exe` unsigned; update packages signed with the Tauri updater key; SHA-256 checksums published; install guide covers Gatekeeper and SmartScreen prompts (ADR-007).
+- **NFR10 Distribution:** Windows `.msi`/`.exe` unsigned; update packages signed with the Tauri updater key; SHA-256 checksums published; install guide covers the SmartScreen prompt (ADR-007, ADR-010).
 - **NFR11 Footprint:** installer a few MB (Tauri); fast cold start.
 - **NFR12 Compliance:** DPDP Act (India) and GDPR readiness (consent, purpose limits, DPAs, breach notice); SOC 2 path later.
 - **NFR13 Observability:** release→insert p50/p95 split by mode, model, region; spend alerts at 2× 7-day average.
@@ -69,7 +69,7 @@ Knowledge workers increasingly "write" to AI tools and colleagues all day. OS di
 ## 3. User Interface Design Goals
 
 ### Overall UX Vision
-Invisible until needed. A small always-on-top "notch" overlay appears on hotkey down, shows a live waveform and partial text, then the streamed rewrite, then disappears after insert. Configuration lives in a compact tray/menu-bar settings window.
+Invisible until needed. A small always-on-top "notch" overlay appears on hotkey down, shows a live waveform and partial text, then the streamed rewrite, then disappears after insert. Configuration lives in a compact system-tray settings window.
 
 ### Key Interaction Paradigms
 - Hold-to-talk; release = end of speech.
@@ -77,7 +77,7 @@ Invisible until needed. A small always-on-top "notch" overlay appears on hotkey 
 - Mode badge in the overlay (Dictation / Prompt / Email) with a quick-switch.
 
 ### Core Screens and Views
-1. Onboarding & permissions (Microphone, Accessibility on macOS).
+1. Onboarding & microphone access check.
 2. Sign-in.
 3. Overlay / notch (idle-hidden, listening, transcribing, rewriting, inserted, error).
 4. Settings: General (hotkey, insert behaviour, language), Modes (default + per-app overrides), Preset, Dictionary.
@@ -92,7 +92,7 @@ WCAG AA for the settings UI; overlay readable at high contrast; all settings key
 Clean, minimal, system-native look; light/dark following the OS.
 
 ### Target Platforms
-macOS 13+ (Apple Silicon + Intel) and Windows 10/11 desktop.
+Windows 10/11 desktop only (ADR-010).
 
 ## 4. Technical Assumptions
 
@@ -109,7 +109,7 @@ macOS 13+ (Apple Silicon + Intel) and Windows 10/11 desktop.
 | 2 | Backend Core & Auth | Fastify service, auth, data model, `/session/start`, `/session/{id}/end`, settings, dictionary, usage | 2 |
 | 3 | AI Rewrite & Modes | OpenRouter presets/fallbacks, prompt templates, `/rewrite` SSE, active-app detection, failure paths | 2 |
 | 4 | Quality & Performance Harness | Eval set, timing harness, CI quality gate; gate: prompt p95 < 3 s, quality ≥ Lemon | 2 |
-| 5 | Beta Readiness | Signed builds both OSes, auto-update, quotas, observability, privacy, account deletion; gate: 50+ users, > 99.5 % crash-free | 3 |
+| 5 | Beta Readiness | Windows builds (unsigned, signed updates), auto-update, quotas, observability, privacy, account deletion; gate: 50+ users, > 99.5 % crash-free | 3 |
 | 6 | Monetization & Launch | Billing, plan limits, staged rollout + kill switch, capacity planning, load test at 3× peak | 4 |
 
 Detailed stories and acceptance criteria: `docs/epics/epic-1-*.md` … `docs/epics/epic-6-*.md`.

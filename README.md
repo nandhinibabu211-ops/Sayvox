@@ -1,6 +1,36 @@
 # Sayvox — Voice-to-Prompt Dictation
 
-Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt / email is typed at your cursor on macOS and Windows.
+Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt / email is typed at your cursor on Windows.
+
+## Developer setup (Windows 10/11)
+
+**Prerequisites**
+- Node.js 24 LTS and pnpm 10 (`npm install -g pnpm@10`)
+- Rust stable with the MSVC target (`winget install Rustlang.Rustup`)
+- Visual Studio 2022 Build Tools with the "Desktop development with C++" workload
+- Microsoft Edge WebView2 Runtime (preinstalled on Windows 11)
+- Docker Desktop (local Postgres + Redis)
+
+**First run**
+```powershell
+pnpm install
+Copy-Item apps/api/.env.example apps/api/.env
+docker compose up -d
+pnpm --filter @sayvox/api dev            # API on http://localhost:8787/healthz
+pnpm --filter @sayvox/desktop tauri dev  # desktop shell
+```
+
+**Checks**
+```powershell
+pnpm check       # lint + typecheck + unit tests (all TypeScript packages)
+pnpm --filter @sayvox/api test:integration   # Postgres + Redis tests (needs Docker running)
+pnpm --filter @sayvox/api db:setup           # apply migrations + seed plans to DATABASE_URL
+pnpm lint:rust   # cargo fmt --check + clippy -D warnings
+pnpm test:rust   # cargo test
+pnpm format      # prettier
+```
+
+**Layout:** `apps/desktop` (Tauri v2: Vite + TS UI, Rust core in `src-tauri/`), `apps/api` (Fastify 5, Drizzle + Postgres, Redis), `apps/web` (hosted sign-in page for Firebase Hosting), `packages/shared` (Zod schemas from the OpenAPI contract), `packages/prompts` (system prompts + version). Planned folders such as `eval/` and `infra/` arrive with their stories.
 
 ## Planning artifacts
 
@@ -12,8 +42,8 @@ Hold **Ctrl+Shift**, speak, release: clean dictation or a structured AI prompt /
 | [docs/front-end-spec.md](docs/front-end-spec.md) | UX — IA, flows, overlay state machine, screens |
 | [docs/architecture.md](docs/architecture.md) | Architect — stack, components, APIs, deployment, standards, ADRs |
 | [docs/epics/](docs/epics/) | Epics 1–6 with stories and acceptance criteria |
-| [docs/stories/](docs/stories/) | 46 dev-ready stories (1.1–6.8), status Draft — tasks, dev notes, testing |
-| [docs/adr/](docs/adr/README.md) | Decision records (ADR-001–008); only ADR-002 waits on the timing test |
+| [docs/stories/](docs/stories/) | 45 dev-ready stories (1.1–6.8; 5.1 removed, Windows only), status Draft — tasks, dev notes, testing |
+| [docs/adr/](docs/adr/README.md) | Decision records (ADR-001–010); only ADR-002 waits on the timing test |
 | [docs/checklists/pm-checklist-results.md](docs/checklists/pm-checklist-results.md) | PM checklist outcome |
 | [.bmad-core/core-config.yaml](.bmad-core/core-config.yaml) | BMAD paths config |
 

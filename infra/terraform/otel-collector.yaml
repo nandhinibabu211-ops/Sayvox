@@ -1,0 +1,51 @@
+# OpenTelemetry Collector sidecar config (architecture section 16, ADR-006).
+# The API exports OTLP/HTTP to localhost:4318; this forwards metrics to Cloud Monitoring
+# (as workload.googleapis.com/<name>) and traces to Cloud Trace. Metric names and labels
+# are referenced by infra/observability: keep them in sync.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: localhost:4318
+
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 10s
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 65
+    spike_limit_percentage: 20
+  resourcedetection:
+    detectors: [env, gcp]
+    timeout: 2s
+    override: false
+  # staging / prod share metric names; the namespace label tells them apart.
+  resource:
+    attributes:
+      - key: service.namespace
+        value: ${env:SAYVOX_ENV}
+        action: upsert
+
+exporters:
+  googlecloud:
+    metric:
+      prefix: workload.googleapis.com
+    log:
+      default_log_name: opentelemetry-collector
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [googlecloud]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, resource, batch]
+      exporters: [googlecloud]

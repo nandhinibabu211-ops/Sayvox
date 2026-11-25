@@ -33,7 +33,7 @@ As a prompt engineer, I want versioned templates per mode, so that changes are r
 
 ## Story 3.4 — Active-app detection and mode resolver
 **Acceptance Criteria**
-1. Rust `active_app` returns bundle id (macOS) / exe name (Windows) + window title (title used only for browser-hosted apps like Gmail; not sent beyond app id).
+1. Rust `active_app` returns the foreground exe name + window title (title used only for browser-hosted apps like Gmail; not sent beyond app id).
 2. Mode resolver: per-app override → built-in default map (Cursor/VS Code → Prompt; Gmail/Outlook → Email; Slack/Teams → Email/Slack) → user default.
 3. Overlay shows mode badge; click cycles mode for current press.
 

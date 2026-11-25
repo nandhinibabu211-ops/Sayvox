@@ -16,19 +16,32 @@ Rules:
 3. Client abort (connection close) MUST abort the upstream OpenRouter request.
 4. No event payload or log line contains the transcript.
 
-## Upstream request built by backend
+## Upstream request built by backend (one per attempt)
+Verified 2026-11-25 (research R2). Each attempt names **one** model, because the lowest reasoning
+effort differs per model; the backend walks the preset list itself (R3).
 ```json
 {
-  "models": ["<primary>", "<fallback1>", "<fallback2>"],
+  "model": "<slug for this attempt>",
   "stream": true,
   "max_tokens": 600,
   "temperature": 0.2,
-  "reasoning": { "effort": "<lowest>" },
-  "provider": { "data_collection": "deny" },
+  "reasoning": { "effort": "<per-model lowest: none | minimal>" },
+  "provider": { "data_collection": "deny", "zdr": true },
   "messages": [
     { "role": "system", "content": "<templates[mode] — byte-stable>" },
     { "role": "user", "content": "<target_app>{app}</target_app>\n<transcript>{transcript}</transcript>" }
   ]
 }
 ```
-Field names for `reasoning` and `provider` MUST be verified (research R2).
+
+| Model | `reasoning.effort` |
+| --- | --- |
+| `anthropic/claude-haiku-5.5` | `none` |
+| `openai/gpt-6-luna` | `none` |
+| `google/gemini-3.5-flash-lite` | `minimal` (reasoning is mandatory) |
+
+## Upstream stream handling
+- Skip SSE comment lines (start with `:`, e.g. `: OPENROUTER PROCESSING`).
+- `data: [DONE]` ends the stream; `usage` comes in the last chunk before it.
+- A chunk with a top-level `error` (and `finish_reason: "error"`) is a mid-stream failure: if no token was relayed yet, fall back to the next model; otherwise end with `error` (client pastes the raw transcript).
+- Log `X-Generation-Id`, model, status and timings only.
