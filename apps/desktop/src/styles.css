@@ -341,3 +341,48 @@ body > .status {
     transition: none !important;
   }
 }
+
+/* ── Privacy & Account ── */
+
+.facts {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  color: var(--muted);
+}
+
+.facts li {
+  margin-bottom: 6px;
+}
+
+.facts strong {
+  color: var(--fg);
+}
+
+button.danger {
+  border-color: #c62828;
+  background: #c62828;
+  color: #fff;
+}
+
+button.danger-outline {
+  border-color: #c62828;
+  color: #c62828;
+}
+
+@media (prefers-color-scheme: dark) {
+  button.danger-outline {
+    border-color: #ff8a80;
+    color: #ff8a80;
+  }
+}
+
+.confirm {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #c62828;
+  border-radius: 8px;
+}
+
+.confirm p {
+  color: var(--fg);
+}

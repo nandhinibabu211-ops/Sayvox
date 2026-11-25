@@ -222,9 +222,15 @@ paths:
   /v1/account:
     delete:
       summary: Delete account and all user data
+      description: >
+        Idempotent and safe to retry. Removes the user's rows (cascade), Redis keys and
+        Identity Platform account; the caller's ID token is refused afterwards (401).
+        409 while a live subscription still has to be cancelled.
       responses:
         "204": { description: Deleted }
-        "404": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
 
   /v1/telemetry:
     post:

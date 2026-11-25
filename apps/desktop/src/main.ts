@@ -11,6 +11,8 @@ import { mountGeneral } from "./settings/General";
 import { hotkeyLabel } from "./settings/model";
 import { mountModes } from "./settings/Modes";
 import { mountPreset } from "./settings/Preset";
+import { mountPrivacy } from "./settings/Privacy";
+import { startTelemetry } from "./telemetry";
 
 /** Settings / onboarding window (front-end spec §2–4). */
 
@@ -25,14 +27,21 @@ const store = new SettingsStore({
     api.json<SettingsResponse>("/v1/settings", { method: "PUT", body: JSON.stringify(body) }),
 });
 const ctx: SettingsContext = { store, api, status: say };
+startTelemetry(api, "settings");
 
 // ── Navigation ──
-type Page = "home" | "general" | "modes" | "preset" | "dictionary";
+type Page = "home" | "general" | "modes" | "preset" | "dictionary" | "privacy";
 const mounts: Record<Exclude<Page, "home">, (root: HTMLElement, c: SettingsContext) => void> = {
   general: mountGeneral,
   modes: mountModes,
   preset: mountPreset,
   dictionary: mountDictionary,
+  privacy: (root, c) =>
+    mountPrivacy(root, {
+      ...c,
+      email: () => $("email").textContent ?? "",
+      onDeleted: () => void onAccountDeleted(),
+    }),
 };
 const mounted = new Set<Page>(["home"]);
 const navButtons = [...document.querySelectorAll<HTMLButtonElement>("nav [data-page]")];
@@ -61,6 +70,17 @@ store.subscribe((s) => {
   for (const el of document.querySelectorAll(".hotkey-label"))
     el.textContent = hotkeyLabel(s.hotkey);
 });
+
+/** After deletion: back to onboarding with a fresh window state. */
+async function onAccountDeleted(): Promise<void> {
+  // Screens hold the deleted user's data; rebuild them on the next sign-in.
+  for (const p of [...mounted]) if (p !== "home") $(`page-${p}`).replaceChildren();
+  mounted.clear();
+  mounted.add("home");
+  show("home");
+  await refresh();
+  say("Your account was deleted. Thanks for trying Sayvox.");
+}
 
 // ── Session ──
 async function refresh(): Promise<void> {

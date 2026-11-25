@@ -118,12 +118,12 @@ Tests are written first and must fail before implementation (Constitution V).
 - [x] T072 [US4] Rebindable hotkey support — `src-tauri/src/hotkey/binding.rs`
 
 ## Phase 7: User Story 6 — Trust & data control (P2)
-- [ ] T073 [P] [US6] Privacy page + terms — `apps/web/src/pages/privacy.*`, `terms.*`
-- [ ] T074 [P] [US6] In-app Privacy & Account screen — `apps/desktop/src/settings/Privacy.tsx`
-- [ ] T075 [US6] `DELETE /v1/account` cascade + auth identity delete + test — `apps/api/src/modules/account/`
-- [ ] T076 [US6] `POST /v1/telemetry` (enum/number-only schema) → Error Reporting / Cloud Logging; backend Error Reporting with body scrubbing — `apps/api/src/modules/telemetry/`, `apps/*/src/telemetry/`
-- [ ] T077 [US6] OpenRouter no-train/no-retain routing on every request; document ElevenLabs retention — `apps/api/src/lib/openrouter/`, `research.md`
-- [ ] T078 [US6] Privacy audit script (search Cloud Logging, Error Reporting, BigQuery, DB for test phrases) — `eval/privacy-audit/`
+- [x] T073 [P] [US6] Privacy page + terms — `apps/web/privacy.html`, `terms.html` (drafts pending legal review)
+- [x] T074 [P] [US6] In-app Privacy & Account screen — `apps/desktop/src/settings/Privacy.ts`
+- [x] T075 [US6] `DELETE /v1/account` cascade + auth identity delete + test — `apps/api/src/modules/account/`
+- [x] T076 [US6] `POST /v1/telemetry` (enum/number-only schema) → Error Reporting / Cloud Logging; backend Error Reporting with body scrubbing — `apps/api/src/modules/telemetry/`, `apps/*/src/telemetry/`
+- [x] T077 [US6] OpenRouter no-train/no-retain routing on every request; document ElevenLabs retention — `apps/api/src/lib/openrouter/`, `research.md`
+- [x] T078 [US6] Privacy audit script (search Cloud Logging, Error Reporting, BigQuery, DB for test phrases) — `eval/privacy-audit/`
 
 ## Phase 8: User Story 7 — Safe updates (P3)
 - [ ] ~~T079~~ Removed — macOS out of scope (ADR-010)

@@ -6,6 +6,8 @@ import { startTelemetry } from "./lib/otel";
 import { createRedis } from "./lib/redis/client";
 import { ConfigService } from "./modules/config/service";
 import { createUserResolver } from "./modules/auth/users";
+import { createIdentityDeleter } from "./modules/account/identity";
+import { keys } from "./lib/redis/keys";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
@@ -56,6 +58,7 @@ const app = buildApp({
       acceptEmulatorTokens: !isDeployed && Boolean(env.FIREBASE_AUTH_EMULATOR_HOST),
     }),
     resolveUser: createUserResolver(database.db),
+    isDeleted: async (uid) => (await redis.exists(keys.accountDeleted(uid))) === 1,
   },
   session: {
     db: database.db,
@@ -71,6 +74,15 @@ const app = buildApp({
     prices: () => prices,
   },
   settings: { db: database.db, redis },
+  account: {
+    db: database.db,
+    redis,
+    deleteIdentity: createIdentityDeleter({
+      projectId: env.GCP_PROJECT_ID,
+      emulatorHost: isDeployed ? undefined : env.FIREBASE_AUTH_EMULATOR_HOST,
+    }),
+  },
+  telemetry: { logger },
 });
 
 const stopSweeper = startSweeper(database.db, (err) =>

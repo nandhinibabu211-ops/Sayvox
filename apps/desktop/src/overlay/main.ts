@@ -12,6 +12,7 @@ import { parseCached, SETTINGS_CACHE_KEY, SettingsStore } from "../services/sett
 import { TokenCache } from "../services/tokenCache";
 import { REVIEW_HINT } from "./review";
 import type { OverlayState } from "./state";
+import { startTelemetry } from "../telemetry";
 
 /**
  * Overlay window: runs the dictation pipeline and renders its state (T038).
@@ -19,6 +20,7 @@ import type { OverlayState } from "./state";
  */
 
 const api = createApiClient();
+startTelemetry(api, "overlay");
 const tokens = new TokenCache(() =>
   api.json<SessionStartResponse>("/v1/session/start", { method: "POST", body: "{}" }),
 );
@@ -158,6 +160,8 @@ window.addEventListener("storage", (e) => {
   if (e.key === SETTINGS_CACHE_KEY) {
     const next = parseCached(e.newValue);
     if (next) applySettings(next);
+    // Cleared by account deletion: drop the prefetched session of the deleted user.
+    else if (e.newValue === null) tokens.invalidate();
   }
 });
 

@@ -1,6 +1,9 @@
 import { ERROR_STATUS, type ErrorCode, type ErrorEnvelope } from "@sayvox/shared";
 import type { FastifyError, FastifyInstance } from "fastify";
 import { ZodError } from "zod";
+import { serverErrorEntry } from "../lib/errorReporting";
+
+const VERSION = process.env["npm_package_version"] ?? "0.0.0";
 
 /** Throw this from routes and plugins; the handler maps it to the contract's error envelope. */
 export class ApiError extends Error {
@@ -55,7 +58,9 @@ export function registerErrorHandling(app: FastifyInstance): void {
         .send(errorBody("VALIDATION_FAILED", `Invalid fields: ${fields.join(", ")}`, req.id));
     }
     const status = typeof err.statusCode === "number" ? err.statusCode : 500;
-    if (status >= 500) req.log.error({ errCode: err.code, errName: err.name }, "request failed");
+    // Unexpected failure: report to Error Reporting with a scrubbed stack (no message, no
+    // request body — either could carry user text).
+    if (status >= 500) req.log.error(serverErrorEntry(err, VERSION), "request failed");
     const code: ErrorCode =
       status >= 500 ? "INTERNAL" : (STATUS_CODE[status] ?? "VALIDATION_FAILED");
     // Never echo messages for 5xx (may carry upstream payloads) or parser errors (may echo body).

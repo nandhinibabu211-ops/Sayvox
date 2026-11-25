@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import { registerHttpMetrics } from "./lib/otel/metrics";
+import { registerAccountRoutes, type AccountDeps } from "./modules/account/routes";
 import { registerAuth, type AuthOptions } from "./modules/auth/plugin";
 import { registerRewriteRoutes, type RewriteDeps } from "./modules/rewrite/routes";
 import { registerSessionRoutes, type SessionDeps } from "./modules/session/routes";
 import { registerSettingsRoutes, type SettingsDeps } from "./modules/settings/routes";
+import { registerTelemetryRoutes, type TelemetryDeps } from "./modules/telemetry/routes";
 import { registerErrorHandling } from "./plugins/errors";
 
 export interface BuildAppOptions {
@@ -17,6 +19,10 @@ export interface BuildAppOptions {
   rewrite?: RewriteDeps;
   /** /v1/settings and /v1/dictionary; require `auth`. */
   settings?: SettingsDeps;
+  /** DELETE /v1/account; requires `auth`. */
+  account?: AccountDeps;
+  /** POST /v1/telemetry; requires `auth`. */
+  telemetry?: TelemetryDeps;
 }
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
@@ -27,6 +33,8 @@ export function buildApp({
   session,
   rewrite,
   settings,
+  account,
+  telemetry,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
@@ -59,6 +67,14 @@ export function buildApp({
   if (settings) {
     if (!auth) throw new Error("settings routes require auth");
     registerSettingsRoutes(app, settings);
+  }
+  if (account) {
+    if (!auth) throw new Error("account routes require auth");
+    registerAccountRoutes(app, account);
+  }
+  if (telemetry) {
+    if (!auth) throw new Error("telemetry routes require auth");
+    registerTelemetryRoutes(app, telemetry);
   }
 
   return app;

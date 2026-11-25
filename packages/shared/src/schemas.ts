@@ -167,6 +167,9 @@ export const CheckoutRequest = z.object({
 });
 export type CheckoutRequest = z.infer<typeof CheckoutRequest>;
 
+/** Version strings only ("0.1.0", "0.2.0-beta.1"): no room for free text. */
+const ClientVersion = z.string().regex(/^[0-9A-Za-z.+-]{1,32}$/);
+
 /** Text-free product event (strict: unknown fields are rejected). */
 export const TelemetryEvent = z.strictObject({
   kind: z.literal("event"),
@@ -180,7 +183,7 @@ export const TelemetryEvent = z.strictObject({
   at: z.iso.datetime(),
   mode: Mode.optional(),
   durationMs: z.int().min(0).optional(),
-  clientVersion: z.string().max(32).optional(),
+  clientVersion: ClientVersion.optional(),
   os: ClientOs.optional(),
 });
 export type TelemetryEvent = z.infer<typeof TelemetryEvent>;
@@ -200,7 +203,7 @@ export const CrashModule = z.enum([
 export const CrashReport = z.strictObject({
   kind: z.literal("crash"),
   at: z.iso.datetime(),
-  clientVersion: z.string().max(32),
+  clientVersion: ClientVersion,
   os: ClientOs,
   errorCode: z
     .string()

@@ -11,12 +11,19 @@ declare module "fastify" {
   interface FastifyContextConfig {
     /** Opt a route out of authentication (healthz, client-config, billing webhook). */
     public?: boolean;
+    /** Reachable by a tombstoned account, so a failed deletion can be retried. */
+    allowDeleted?: boolean;
   }
 }
 
 export interface AuthOptions {
   verify: IdTokenVerifier;
   resolveUser: ResolveUser;
+  /**
+   * True if this identity's account was deleted (Story 5.7): its ID tokens stay valid for up
+   * to an hour, and resolving would recreate the user. Errors fail open (logged).
+   */
+  isDeleted?: (authProviderId: string) => Promise<boolean>;
 }
 
 function bearerToken(req: FastifyRequest): string | undefined {
@@ -50,6 +57,14 @@ export function registerAuth(app: FastifyInstance, opts: AuthOptions): void {
         "UNAUTHENTICATED",
         reason === "expired" ? "Token expired" : "Invalid token",
       );
+    }
+
+    if (opts.isDeleted && !req.routeOptions.config?.allowDeleted) {
+      const deleted = await opts.isDeleted(identity.sub).catch((err: unknown) => {
+        req.log.warn({ errName: (err as Error).name }, "deleted-account check failed");
+        return false;
+      });
+      if (deleted) throw new ApiError("UNAUTHENTICATED", "This account was deleted");
     }
 
     const user = await opts.resolveUser(identity);
