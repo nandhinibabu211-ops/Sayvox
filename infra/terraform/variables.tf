@@ -100,6 +100,12 @@ variable "razorpay_plan_ids" {
   default     = "{}"
 }
 
+variable "initial_image" {
+  description = "Image for the first apply only (deploy.yml manages it afterwards)."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
 variable "otel_collector_image" {
   description = "Google-built OpenTelemetry Collector for the Cloud Run sidecar (tag checked 2026-11-25 against the public registry)."
   type        = string

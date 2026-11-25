@@ -3,7 +3,7 @@
 # The first apply uses a placeholder image until the first deploy.
 
 locals {
-  image_placeholder = "us-docker.pkg.dev/cloudrun/container/hello"
+  image_placeholder = var.initial_image
   node_env          = var.env == "prod" ? "production" : "staging"
   plain_env = {
     NODE_ENV                    = local.node_env

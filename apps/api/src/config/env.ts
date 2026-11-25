@@ -13,6 +13,18 @@ const csv = z
 const bool = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1");
 
 /**
+ * Provider keys and secrets: surrounding whitespace is dropped (a key pasted into
+ * `gcloud secrets versions add --data-file=-` usually ends with a newline), and an empty
+ * value counts as unset.
+ */
+const secret = z
+  .string()
+  .transform((s) => s.trim())
+  .pipe(z.string())
+  .optional()
+  .transform((s) => (s ? s : undefined));
+
+/**
  * Environment contract for the API. Secrets come from Secret Manager in staging/prod.
  * Provider keys are optional here so unit tests and local dev can boot without them;
  * the modules that call providers fail loudly if their key is missing.
@@ -77,9 +89,9 @@ export const EnvSchema = z.object({
 
   // Billing (ADR-003). All optional: without keys, checkout returns 503 and the app works
   // on the free plan. Test-mode keys outside production.
-  RAZORPAY_KEY_ID: z.string().optional(),
-  RAZORPAY_KEY_SECRET: z.string().optional(),
-  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  RAZORPAY_KEY_ID: secret,
+  RAZORPAY_KEY_SECRET: secret,
+  RAZORPAY_WEBHOOK_SECRET: secret,
   /** Sayvox plan id → Razorpay plan id, e.g. {"pro":"plan_XXXX"} (created in the dashboard). */
   RAZORPAY_PLAN_IDS: z
     .string()
@@ -98,8 +110,8 @@ export const EnvSchema = z.object({
   /** Billing cycles per subscription (Razorpay needs a count); 120 monthly = 10 years. */
   RAZORPAY_TOTAL_COUNT: z.coerce.number().int().min(1).max(1200).default(120),
 
-  ELEVENLABS_API_KEY: z.string().optional(),
-  OPENROUTER_API_KEY: z.string().optional(),
+  ELEVENLABS_API_KEY: secret,
+  OPENROUTER_API_KEY: secret,
 });
 
 export type Env = z.infer<typeof EnvSchema>;
