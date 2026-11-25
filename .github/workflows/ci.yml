@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: Lint, typecheck, test (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  secrets-guard:
+    name: No provider keys in the desktop app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail if provider secrets are referenced under apps/desktop (Constitution II)
+        run: |
+          if grep -rnE "ELEVENLABS_API_KEY|OPENROUTER_API_KEY|RAZORPAY_KEY_SECRET|xi-api-key" apps/desktop \
+               --exclude-dir=node_modules --exclude-dir=target --exclude-dir=dist; then
+            echo "::error::Provider keys must live only in apps/api"
+            exit 1
+          fi
+
+  rust:
+    name: Rust fmt, clippy, test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - name: Frontend dist placeholder for tauri::generate_context!
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force apps/desktop/dist | Out-Null
+      - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml

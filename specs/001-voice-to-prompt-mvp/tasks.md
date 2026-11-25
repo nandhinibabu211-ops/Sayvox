@@ -10,15 +10,15 @@ Tests are written first and must fail before implementation (Constitution V).
 ---
 
 ## Phase 1: Setup (shared infrastructure)
-- [ ] T001 Create pnpm workspace + Turborepo — `package.json`, `pnpm-workspace.yaml`, `turbo.json`
-- [ ] T002 [P] Scaffold Tauri v2 app (Vite + TS) — `apps/desktop/`
-- [ ] T003 [P] Scaffold Fastify 5 API with `GET /healthz` — `apps/api/src/server.ts`
-- [ ] T004 [P] Create shared package with Zod schemas from `contracts/openapi.yaml` — `packages/shared/src/`
-- [ ] T005 [P] Create prompts package skeleton with version export — `packages/prompts/`
-- [ ] T006 [P] ESLint/Prettier, clippy/rustfmt configs — root + `apps/desktop/src-tauri/`
-- [ ] T007 GitHub Actions CI: lint, typecheck, unit tests — `.github/workflows/ci.yml`
-- [ ] T008 [P] docker-compose for Postgres + Redis; `.env.example` — `docker-compose.yml`, `apps/api/.env.example`
-- [ ] T009 [P] Structured logger with transcript redaction + test — `apps/api/src/lib/logger.ts`
+- [x] T001 Create pnpm workspace + Turborepo — `package.json`, `pnpm-workspace.yaml`, `turbo.json`
+- [x] T002 [P] Scaffold Tauri v2 app (Vite + TS) — `apps/desktop/`
+- [x] T003 [P] Scaffold Fastify 5 API with `GET /healthz` — `apps/api/src/server.ts`
+- [x] T004 [P] Create shared package with Zod schemas from `contracts/openapi.yaml` — `packages/shared/src/`
+- [x] T005 [P] Create prompts package skeleton with version export — `packages/prompts/`
+- [x] T006 [P] ESLint/Prettier, clippy/rustfmt configs — root + `apps/desktop/src-tauri/`
+- [x] T007 GitHub Actions CI: lint, typecheck, unit tests — `.github/workflows/ci.yml`
+- [x] T008 [P] docker-compose for Postgres + Redis; `.env.example` — `docker-compose.yml`, `apps/api/.env.example`
+- [x] T009 [P] Structured logger with transcript redaction + test — `apps/api/src/lib/logger.ts`
 
 ## Phase 2: Foundational (blocks all user stories)
 - [ ] T010 Drizzle schema for all tables per data-model.md — `apps/api/src/lib/db/schema.ts`
