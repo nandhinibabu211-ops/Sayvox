@@ -42,6 +42,29 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sayvox/api test:integration
 
+  api-image:
+    name: API container builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t sayvox-api:ci .
+      - name: Image starts and the job scripts load
+        run: |
+          docker run --rm --entrypoint node sayvox-api:ci --import tsx --input-type=module -e "await import('./src/jobs/spend.ts'); await import('./src/jobs/reconcile.ts'); console.log('ok')"
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        root: [infra/terraform, infra/observability, infra/downloads]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform -chdir=${{ matrix.root }} fmt -check -recursive
+      - run: terraform -chdir=${{ matrix.root }} init -backend=false -input=false
+      - run: terraform -chdir=${{ matrix.root }} validate
+
   secrets-guard:
     name: No provider keys in the desktop app
     runs-on: ubuntu-latest

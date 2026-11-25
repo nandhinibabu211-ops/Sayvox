@@ -14,6 +14,7 @@ import { TokenCache } from "../services/tokenCache";
 import { REVIEW_HINT } from "./review";
 import { errorFor, type OverlayState } from "./state";
 import { startTelemetry } from "../telemetry";
+import { ProductAnalytics } from "../telemetry/analytics";
 import { ClientConfigWatcher, trayText } from "../updates/clientConfig";
 import { fetchClientConfig, startUpdates } from "../updates/runtime";
 import { hotkeyLabel } from "../settings/model";
@@ -24,7 +25,8 @@ import { hotkeyLabel } from "../settings/model";
  */
 
 const api = createApiClient();
-startTelemetry(api, "overlay");
+const telemetry = startTelemetry(api, "overlay");
+const analytics = new ProductAnalytics((name, fields) => telemetry.event(name, fields));
 const tokens = new TokenCache(() =>
   api.json<SessionStartResponse>("/v1/session/start", { method: "POST", body: "{}" }),
 );
@@ -214,6 +216,7 @@ const pipeline = new DictationPipeline({
     api.json(`/v1/session/${id}/end`, { method: "POST", body: JSON.stringify(body) }),
   onState: (s) => {
     if (s.kind !== "hidden") lastActivity = Date.now();
+    analytics.observe(s);
     render(s);
   },
   blocked: () => {

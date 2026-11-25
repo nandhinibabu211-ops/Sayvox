@@ -9,6 +9,7 @@ import { type MintScribeToken, ProviderError } from "../../lib/elevenlabs/token"
 import {
   releaseToInsertDuration,
   sessionStartDuration,
+  sessionEndCounter,
   sttCommitDuration,
 } from "../../lib/otel/metrics";
 import { ApiError } from "../../plugins/errors";
@@ -223,6 +224,7 @@ export function registerSessionRoutes(app: FastifyInstance, deps: SessionDeps): 
       const attrs = { mode: body.mode ?? "dictation", result: body.insertResult };
       releaseToInsertDuration().record(body.timings.releaseToInsertMs, attrs);
       sttCommitDuration().record(body.timings.sttCommitMs, attrs);
+      sessionEndCounter().add(1, { ...attrs, scribe_retried: body.scribeRetried === true });
     }
     return reply.code(204).send();
   });

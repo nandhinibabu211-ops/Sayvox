@@ -63,3 +63,7 @@ Clients in the rollout download in the background and install after 10 idle minu
   wake) and the API refuses new sessions within 10 s.
 
 Every `cfg:set` prints a JSON audit line; paste it into the incident log.
+
+In staging and prod Redis is private (Memorystore), so run these through the
+`sayvox-<env>-cfg` Cloud Run job instead of `pnpm cfg:set` from a laptop: see
+`kill-switch.md` "The levers".

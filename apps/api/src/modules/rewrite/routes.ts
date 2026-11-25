@@ -1,6 +1,7 @@
 import { buildMessages, TEMPLATE_VERSION } from "@sayvox/prompts";
 import { RewriteRequest } from "@sayvox/shared";
 import type { FastifyInstance } from "fastify";
+import { llmTtftDuration, rewriteCounter } from "../../lib/otel/metrics";
 import type { StreamCompletion } from "../../lib/openrouter/stream";
 import { ApiError } from "../../plugins/errors";
 import { requireUser } from "../auth/plugin";
@@ -105,6 +106,8 @@ export function registerRewriteRoutes(app: FastifyInstance, deps: RewriteDeps): 
         }
         if (ev.event === "done") {
           write("done", ev.data);
+          llmTtftDuration().record(ev.data.ttftMs, { mode: body.mode });
+          rewriteCounter().add(1, { mode: body.mode, outcome: fallbackUsed ? "fallback" : "ok" });
           await deps.store
             .record(
               user.id,
@@ -133,6 +136,7 @@ export function registerRewriteRoutes(app: FastifyInstance, deps: RewriteDeps): 
         }
         if (ev.event === "error") {
           req.log.warn({ code: ev.data.code }, "rewrite failed");
+          rewriteCounter().add(1, { mode: body.mode, outcome: "error" });
           await deps.store
             .record(
               user.id,

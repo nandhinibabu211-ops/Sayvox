@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { buildApp } from "../../src/app";
+import { createLogger } from "../../src/lib/logger";
 import { describe, expect, it, vi } from "vitest";
 import type { RazorpayError } from "../../src/lib/razorpay/client";
 import { createRazorpayClient, verifyWebhookSignature } from "../../src/lib/razorpay/client";
@@ -143,8 +145,6 @@ describe("plan mapping and entitlement (T087)", () => {
 
 describe("webhook route guards (no database needed)", () => {
   async function appWith(secret: string | undefined) {
-    const { buildApp } = await import("../../src/app");
-    const { createLogger } = await import("../../src/lib/logger");
     return buildApp({
       logger: createLogger({ level: "silent" }),
       auth: {

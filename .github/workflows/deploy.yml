@@ -1,0 +1,155 @@
+name: Deploy API
+
+# T094 / architecture section 11: build once -> staging (migrate, deploy, smoke) -> manual
+# approval -> prod (migrate, deploy with no traffic, smoke the new revision, shift traffic,
+# watch 10 min, roll back automatically if 5xx or p95 go over the section 16 limits).
+#
+# One-time setup: docs/runbooks/deploy.md. GitHub environments `staging` and `production`
+# hold the `github_vars` output of infra/terraform as variables; `production` has required
+# reviewers. Auth is Workload Identity Federation: no service-account keys.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/api/**
+      - packages/shared/**
+      - packages/prompts/**
+      - pnpm-lock.yaml
+      - infra/scripts/**
+      - .github/workflows/deploy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+env:
+  REGION: us-east4
+  PROJECT_ID: sayvox-app-2026
+
+jobs:
+  staging:
+    name: Build and deploy to staging
+    # Off until the infrastructure exists: set the repository variable DEPLOY_ENABLED=true.
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: staging
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push the image
+        id: image
+        run: |
+          IMAGE="${{ vars.API_REPOSITORY }}/api:${GITHUB_SHA}"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -f apps/api/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Point jobs at the new image and run migrations
+        run: |
+          IFS=',' read -ra JOBS <<< "${{ vars.JOBS }}"
+          for j in "${JOBS[@]}"; do
+            gcloud run jobs update "$j" --region "$REGION" --image "${{ steps.image.outputs.image }}" --quiet
+          done
+          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region "$REGION" --wait
+
+      - name: Deploy
+        run: |
+          gcloud run services update "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --container api --image "${{ steps.image.outputs.image }}" --quiet
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Smoke test
+        env:
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+          FIREBASE_WEB_API_KEY: ${{ vars.FIREBASE_WEB_API_KEY }}
+        run: node infra/scripts/smoke.mjs "${{ vars.API_BASE_URL }}"
+
+  production:
+    name: Deploy to production
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production # required reviewers = the manual approval gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Remember the serving revision
+        id: prev
+        run: |
+          PREV=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --format='value(status.latestReadyRevisionName)')
+          echo "revision=$PREV" >> "$GITHUB_OUTPUT"
+          echo "Serving before deploy: $PREV"
+
+      # Migrations must be backwards compatible (expand, deploy, then contract in a later
+      # release): the previous revision keeps serving until traffic moves.
+      - name: Point jobs at the new image and run migrations
+        run: |
+          IFS=',' read -ra JOBS <<< "${{ vars.JOBS }}"
+          for j in "${JOBS[@]}"; do
+            gcloud run jobs update "$j" --region "$REGION" --image "${{ needs.staging.outputs.image }}" --quiet
+          done
+          gcloud run jobs execute "${{ vars.MIGRATE_JOB }}" --region "$REGION" --wait
+
+      - name: Deploy the new revision without traffic
+        id: new
+        run: |
+          gcloud run services update "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --container api --image "${{ needs.staging.outputs.image }}" \
+            --no-traffic --tag candidate --quiet
+          NEW=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --format='value(status.latestCreatedRevisionName)')
+          URL=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region "$REGION" --format=json \
+            | jq -r '.status.traffic[] | select(.tag=="candidate") | .url')
+          echo "revision=$NEW" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test the new revision
+        run: node infra/scripts/smoke.mjs "${{ steps.new.outputs.url }}"
+
+      - name: Shift traffic
+        run: |
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --to-revisions "${{ steps.new.outputs.revision }}=100" --quiet
+
+      - name: Watch for 10 minutes
+        run: node infra/scripts/watch-rollout.mjs "$PROJECT_ID" "${{ vars.API_SERVICE }}" "${{ steps.new.outputs.revision }}" 10
+
+      - name: Roll back
+        if: failure() && steps.prev.outputs.revision != ''
+        run: |
+          echo "::error::Rolling back to ${{ steps.prev.outputs.revision }}"
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --to-revisions "${{ steps.prev.outputs.revision }}=100" --quiet
+
+      - name: Drop the candidate tag
+        if: always()
+        run: |
+          gcloud run services update-traffic "${{ vars.API_SERVICE }}" --region "$REGION" \
+            --remove-tags candidate --quiet || true

@@ -28,6 +28,14 @@ export default tseslint.config(
     },
   },
   {
+    // k6 scripts run in k6's own JS runtime (T098).
+    files: ["eval/load/**/*.js"],
+    languageOptions: {
+      globals: { __ENV: "readonly", __VU: "readonly", __ITER: "readonly", open: "readonly" },
+    },
+    rules: { "no-console": "off" },
+  },
+  {
     files: ["apps/desktop/src/**/*.ts"],
     languageOptions: { globals: { ...globals.browser } },
   },
