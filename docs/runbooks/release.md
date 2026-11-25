@@ -8,8 +8,9 @@ Workflow: `.github/workflows/release.yml`. Hosting: `infra/downloads/`.
 1. **Hosting.** `terraform -chdir=infra/downloads init -backend-config="bucket=sayvox-app-2026-tfstate" -backend-config="prefix=downloads"` (state bucket: deploy.md step 1) then
    `terraform -chdir=infra/downloads apply -var github_repo=<owner>/<repo>`. Copy the
    `github_vars` output into GitHub → Settings → Variables (`RELEASE_BUCKET`,
-   `GCP_WIF_PROVIDER`, `GCP_RELEASE_SERVICE_ACCOUNT`). Also set `API_BASE_URL` and
-   `FIREBASE_WEB_API_KEY` (the public web key).
+   `GCP_WIF_PROVIDER`, `GCP_RELEASE_SERVICE_ACCOUNT`). Also set `API_BASE_URL`,
+   `FIREBASE_WEB_API_KEY` (the public, API-restricted Identity Platform key) and `WEB_ORIGIN`
+   (the web pages' Cloud Run URL; the build bakes it into the sign-in check and page links).
 2. **Updater key pair** (ADR-007: installers unsigned, updates signed).
    ```powershell
    pnpm --filter @sayvox/desktop tauri signer generate -w $HOME\.tauri\sayvox-updater.key

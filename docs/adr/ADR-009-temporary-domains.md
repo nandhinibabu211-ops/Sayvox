@@ -1,6 +1,7 @@
 # ADR-009: Temporary domains
 
 **Status:** Accepted · 2026-11-24 · Decided by: project owner ("use temporary domain")
+**Amended 2026-11-26:** web pages moved from Firebase Hosting to Cloud Run, sign-in uses Google Cloud Identity Platform directly (owner: "could you use google cloud instead of firebase").
 
 ## Decision
 Until a custom domain is bought, use Google's free domains in Google Cloud project `sayvox-app-2026`:
@@ -8,7 +9,7 @@ Until a custom domain is bought, use Google's free domains in Google Cloud proje
 | Use | Temporary address |
 | --- | --- |
 | API | Cloud Run service URL, `https://sayvox-api-<hash>-<region>.a.run.app` (known after first deploy) |
-| Website, sign-in page, install guide | Firebase Hosting, `https://sayvox-app-2026.web.app` |
+| Website, sign-in page, install guide | Cloud Run service `sayvox-<env>-web`, `https://sayvox-<env>-web-<project number>.<region>.run.app` (staging: `https://sayvox-staging-web-264655228768.us-west1.run.app`) |
 | Installers and update manifests | Cloud Storage public URL, `https://storage.googleapis.com/<release-bucket>/…` |
 
 ## Consequences

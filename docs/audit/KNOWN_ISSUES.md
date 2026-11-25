@@ -21,6 +21,7 @@ refer to SECURITY_AUDIT.md.
 | KI-16 | Medium | Audio proxy (ADR-011) adds a network hop; latency and Cloud Run bandwidth cost not yet measured | Include in the T040 timing run and the load test |
 | KI-17 | Low | An API instance restart ends the dictations it carries (charged first); the client retries once on a new session | Accepted; Cloud Run drains on deploy |
 | KI-18 | Medium | Staging differs from prod: us-west1 (prod us-east4), AlloyDB Express preview without backups and with ~20 s wake-up, Redis on a single VM | Accepted for cost; latency and load tests must be judged with that in mind |
+| KI-20 | Low | Google sign-in not configured (needs the owner's OAuth consent screen + client); the button is hidden until then. A broad "auto created by Firebase" browser key exists in the project, unused | deploy.md "Sign-in" |
 | KI-19 | Low | The local gcloud (577) predates AlloyDB Express and misparsed `--container api --image ... --quiet` | Update gcloud; deploy.yml now uses `--flag=value` |
 
 ## Fixed in this audit
