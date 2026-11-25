@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Sayvox privacy</title>
+    <meta
+      name="description"
+      content="What Sayvox sends where when you dictate, what it keeps, and how to delete your account."
+    />
+    <link rel="stylesheet" href="/src/legal.css" />
+  </head>
+  <body>
+    <main class="doc">
+      <p class="draft" role="note">
+        Draft for legal review. Not yet in effect. Version 2026-11-25.
+      </p>
+      <h1>Privacy</h1>
+      <p class="lead">
+        Sayvox turns your voice into text at your cursor. Your words pass through two outside
+        services so that can happen. Sayvox itself never stores what you say or what gets written.
+      </p>
+
+      <h2 id="flows">Where your words go</h2>
+      <ol class="flow">
+        <li>
+          <strong>Your PC.</strong> Sayvox records the microphone only while you hold the hotkey.
+          Audio is never saved to disk.
+        </li>
+        <li>
+          <strong>Audio → ElevenLabs</strong> (speech recognition). Audio streams from your PC
+          through Sayvox's servers to ElevenLabs, which sends back the text. Our servers only
+          measure how long the audio is, for your usage limits; they pass it on without saving or
+          logging it. ElevenLabs offers zero retention only on enterprise plans, which Sayvox does
+          not have yet, so
+          <strong>ElevenLabs may keep audio and transcripts under its own terms</strong>. We'll
+          update this page when that changes.
+        </li>
+        <li>
+          <strong>Text → an AI model through OpenRouter</strong> (Prompt and Email modes only). The
+          transcript, and any text you chose to share as reply context, pass through Sayvox's server
+          to OpenRouter and on to the model provider for your preset (for example Anthropic, OpenAI
+          or Google). Every request is limited to providers that
+          <strong>don't train on your data and don't keep prompts</strong> (OpenRouter
+          <code>data_collection: deny</code> and zero data retention). Dictation mode never uses an
+          AI model.
+        </li>
+        <li>
+          <strong>Back to your cursor.</strong> The result is pasted through the Windows clipboard,
+          then your previous clipboard is put back. Clipboard history tools (such as Windows'
+          <kbd>Win</kbd> + <kbd>V</kbd>) may capture that text briefly.
+        </li>
+      </ol>
+
+      <h2 id="stored">What Sayvox stores</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>What</th>
+            <th>Why</th>
+            <th>Kept until</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Email address and sign-in account</td>
+            <td>To sign you in</td>
+            <td>You delete your account</td>
+          </tr>
+          <tr>
+            <td>Settings and dictionary terms you add</td>
+            <td>To work the way you set it up</td>
+            <td>You change them or delete your account</td>
+          </tr>
+          <tr>
+            <td>
+              Per-dictation numbers: seconds of audio, mode, app name (like
+              <code>slack.exe</code>, never window titles), model used, timings, tokens
+            </td>
+            <td>Usage limits, billing and keeping the service fast</td>
+            <td>You delete your account</td>
+          </tr>
+          <tr>
+            <td>Crash reports: error type, app version, code locations</td>
+            <td>Fixing bugs. Error messages and text are removed before sending</td>
+            <td>30 days</td>
+          </tr>
+          <tr>
+            <td>
+              Product events: dictation started or inserted, mode switched, AI fallback used, limit
+              reached, with the mode, duration, app version and Windows version. No account id and
+              no text
+            </td>
+            <td>Seeing which features work and where people get stuck</td>
+            <td>13 months</td>
+          </tr>
+          <tr>
+            <td>Plan and payment status (payments handled by Razorpay)</td>
+            <td>Billing</td>
+            <td>Your account is deleted; Razorpay keeps invoices as tax law requires</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Never stored by Sayvox:</strong> audio, transcripts, AI rewrites, the text you
+        select for email replies, window titles.
+      </p>
+
+      <h2 id="processors">Services we use</h2>
+      <ul>
+        <li><strong>ElevenLabs</strong>: speech recognition.</li>
+        <li><strong>OpenRouter</strong> and the model provider it routes to: AI rewrites.</li>
+        <li>
+          <strong>Google Cloud</strong>: hosting, database, sign-in (Identity Platform), logging and
+          crash reports.
+        </li>
+        <li><strong>Razorpay</strong>: payments for paid plans.</li>
+      </ul>
+
+      <h2 id="choices">Your choices and rights</h2>
+      <ul>
+        <li>
+          <strong>Delete your account</strong> in the app: Settings → Privacy &amp; Account. It
+          removes your account, settings, dictionary and usage records, and signs you out.
+        </li>
+        <li>
+          <strong>Reply context is off by default.</strong> When you turn it on, only the text
+          you've selected is read, once, for that reply.
+        </li>
+        <li>
+          Under India's DPDP Act and the EU GDPR you can ask to see, correct or delete your data.
+          Contact details will be added here before launch.
+        </li>
+      </ul>
+
+      <p class="footer"><a href="/terms">Terms of service</a></p>
+    </main>
+  </body>
+</html>

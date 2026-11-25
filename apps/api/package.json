@@ -13,7 +13,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env src/scripts/db.ts migrate",
     "db:seed": "tsx --env-file-if-exists=.env src/scripts/db.ts seed",
-    "db:setup": "tsx --env-file-if-exists=.env src/scripts/db.ts setup"
+    "db:setup": "tsx --env-file-if-exists=.env src/scripts/db.ts setup",
+    "cfg:get": "tsx --env-file-if-exists=.env src/scripts/cfg.ts get",
+    "cfg:set": "tsx --env-file-if-exists=.env src/scripts/cfg.ts set",
+    "cfg:unset": "tsx --env-file-if-exists=.env src/scripts/cfg.ts unset",
+    "job": "tsx --env-file-if-exists=.env src/scripts/job.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "1.10.0",
@@ -31,12 +35,15 @@
     "jose": "6.2.18",
     "pg": "8.23.1",
     "pino": "10.4.0",
+    "undici": "8.13.1",
+    "ws": "8.23.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@testcontainers/postgresql": "12.2.2",
     "@testcontainers/redis": "12.2.2",
     "@types/pg": "8.23.1",
+    "@types/ws": "8.18.2",
     "drizzle-kit": "0.31.11",
     "tsx": "4.23.15"
   }

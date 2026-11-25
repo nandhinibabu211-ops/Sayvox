@@ -25,9 +25,11 @@ pub const MAX_SESSION_SECONDS: u32 = 300;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DictationEvent {
-    /// Chord pressed; mic is starting. `t` = ms since app start (monotonic).
+    /// Chord pressed; mic is starting. `t` = ms since app start (monotonic). `app` = app id
+    /// of the window being dictated into (exe name or `web:*`; never the window title).
     Press {
         t: u64,
+        app: String,
     },
     /// Held long enough; mic stopped. Every chunk of this hold was sent before this event.
     #[serde(rename_all = "camelCase")]
@@ -35,9 +37,19 @@ pub enum DictationEvent {
         t: u64,
         audio_seconds: f32,
     },
+    /// Opt-in reply context: the text selected in the target app at press (T063).
+    /// Sent separately so reading it never delays the press. Never logged or stored.
+    #[serde(rename_all = "camelCase")]
+    Context {
+        thread_context: String,
+    },
     /// Accidental tap or the chord became a shortcut (Ctrl+Shift+T): discard.
     Cancel {
         t: u64,
+    },
+    /// Enter (`accept: true`) or Esc while a rewrite waits for review (T071).
+    Review {
+        accept: bool,
     },
     AudioError {
         code: AudioErrorCode,
@@ -100,8 +112,20 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
         match ev {
             HotkeyEvent::Press => {
                 state.audio.begin();
+                // Read the target app before the overlay appears.
+                let target = crate::active_app::foreground_app_id();
                 overlay::show(&app);
-                send(DictationEvent::Press { t });
+                send(DictationEvent::Press { t, app: target });
+                if crate::selection::enabled() {
+                    let outbound = state.outbound.clone();
+                    std::thread::spawn(move || {
+                        if let Some(text) = crate::selection::capture() {
+                            let _ = outbound.send(Outbound::Event(DictationEvent::Context {
+                                thread_context: text,
+                            }));
+                        }
+                    });
+                }
                 // Auto-release after MAX_SESSION_SECONDS unless this hold already ended.
                 let my_gen = generation.fetch_add(1, Ordering::SeqCst) + 1;
                 let (app2, gen2) = (app.clone(), generation.clone());
@@ -130,6 +154,7 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
                 overlay::hide(&app);
                 send(DictationEvent::Cancel { t });
             }
+            HotkeyEvent::Review { accept } => send(DictationEvent::Review { accept }),
         }
     }
 }
@@ -164,9 +189,11 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel();
     #[cfg(windows)]
     {
+        // The overlay applies the user's saved chord (`set_hotkey`) as soon as it loads.
         let handle = crate::hotkey::windows::install(
             tx,
             crate::hotkey::state::ChordMachine::DEFAULT_MIN_HOLD_MS,
+            crate::hotkey::Binding::DEFAULT,
         )?;
         if let Ok(mut h) = app.state::<DictationState>().hook.lock() {
             *h = Some(handle);
@@ -189,6 +216,51 @@ pub fn dictation_attach(state: State<'_, DictationState>, chunks: Channel<Invoke
     if let Ok(mut s) = state.sink.0.lock() {
         *s = Some(chunks);
     }
+}
+
+#[cfg(windows)]
+fn with_hook(state: &DictationState, f: impl FnOnce(&crate::hotkey::windows::HookHandle)) {
+    if let Ok(h) = state.hook.lock() {
+        if let Some(h) = h.as_ref() {
+            f(h);
+        }
+    }
+}
+
+/// Switch the hold-to-talk chord (Settings → General, T072). Rejects unsupported chords.
+#[tauri::command]
+pub fn set_hotkey(
+    app: AppHandle,
+    state: State<'_, DictationState>,
+    hotkey: String,
+) -> Result<(), String> {
+    let binding = crate::hotkey::Binding::parse(&hotkey)?;
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_binding(binding));
+    #[cfg(not(windows))]
+    let _ = (&state, binding);
+    if let Some(tray) = app.tray_by_id("sayvox") {
+        let _ = tray.set_tooltip(Some(format!("Sayvox: hold {hotkey} to dictate")));
+    }
+    Ok(())
+}
+
+/// Pause the chord while the hotkey recorder is listening, so trying a chord doesn't dictate.
+#[tauri::command]
+pub fn hotkey_suspend(state: State<'_, DictationState>, suspended: bool) {
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_suspended(suspended));
+    #[cfg(not(windows))]
+    let _ = (&state, suspended);
+}
+
+/// Consume Enter / Esc globally while the overlay shows a rewrite for review (T071).
+#[tauri::command]
+pub fn review_keys(state: State<'_, DictationState>, active: bool) {
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_review(active));
+    #[cfg(not(windows))]
+    let _ = (&state, active);
 }
 
 /// Monotonic ms since app start, for release → inserted timing (same clock as events).
@@ -306,5 +378,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(e, r#"{"kind":"audioError","code":"permissionDenied"}"#);
+        let r = serde_json::to_string(&DictationEvent::Review { accept: true }).unwrap();
+        assert_eq!(r, r#"{"kind":"review","accept":true}"#);
     }
 }
