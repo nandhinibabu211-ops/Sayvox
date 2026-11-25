@@ -122,3 +122,49 @@ th {
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+
+/* ── Install page ── */
+
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0 8px;
+}
+
+.download {
+  padding: 10px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.download.primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.steps li {
+  margin-bottom: 8px;
+}
+
+.note {
+  padding: 10px 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+pre code {
+  padding: 0;
+  border: none;
+}

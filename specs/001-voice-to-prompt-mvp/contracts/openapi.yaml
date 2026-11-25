@@ -296,7 +296,10 @@ components:
         killSwitch: { type: boolean }
         killSwitchMessage: { type: string }
         rolloutPercent: { type: integer, minimum: 0, maximum: 100 }
-        inRollout: { type: boolean }
+        inRollout: { type: boolean, description: "This install (x-install-id) is in the staged rollout" }
+        updateRequired:
+          type: boolean
+          description: Present when x-client-version was sent; true if below minClientVersion
     SessionStartResponse:
       type: object
       required: [sessionId, scribeToken, keyterms, maxSessionSeconds, expiresAt]

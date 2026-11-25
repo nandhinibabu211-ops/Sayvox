@@ -24,6 +24,7 @@ function harness(
     rewrite?: (req: unknown, onToken: (soFar: string) => void) => Promise<RewriteDone>;
     insertMode?: "auto" | "review";
     modePrefs?: ModePrefs;
+    blocked?: () => { kind: "error"; message: string } | null;
   } = {},
 ) {
   const states: OverlayState[] = [];
@@ -63,6 +64,7 @@ function harness(
     ...(opts.insertMode ? { insertMode: () => opts.insertMode! } : {}),
     ...(opts.modePrefs ? { modePrefs: () => opts.modePrefs! } : {}),
     reviewKeys: (on) => reviewKeys.push(on),
+    ...(opts.blocked ? { blocked: opts.blocked } : {}),
   });
   return {
     p,
@@ -402,6 +404,31 @@ describe("DictationPipeline (US1)", () => {
       expect(rewrite).not.toHaveBeenCalled();
       await h.p.onEvent({ kind: "press", t: 1_000, app: "notepad.exe" });
       expect(h.states.at(-1)).toMatchObject({ mode: "prompt" });
+    });
+  });
+
+  describe("safe updates (US7, T081)", () => {
+    it("a kill switch or forced update blocks the press before any session starts", async () => {
+      let takes = 0;
+      let blocked: { kind: "error"; message: string } | null = {
+        kind: "error",
+        message: "Back in 10 minutes",
+      };
+      const h = harness({
+        takeSession: async () => {
+          takes++;
+          return SESSION;
+        },
+        blocked: () => blocked,
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe" });
+      await h.p.onEvent({ kind: "release", t: 900, audioSeconds: 0.9 });
+      expect(takes).toBe(0);
+      expect(h.insert).not.toHaveBeenCalled();
+      expect(h.states).toContainEqual({ kind: "error", message: "Back in 10 minutes" });
+      blocked = null;
+      await h.p.onEvent({ kind: "press", t: 2_000, app: "notepad.exe" });
+      expect(takes).toBe(1);
     });
   });
 });

@@ -83,6 +83,7 @@ const app = buildApp({
     }),
   },
   telemetry: { logger },
+  clientConfig: { config },
 });
 
 const stopSweeper = startSweeper(database.db, (err) =>

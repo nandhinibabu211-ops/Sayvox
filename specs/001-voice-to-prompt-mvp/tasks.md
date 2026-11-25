@@ -128,10 +128,10 @@ Tests are written first and must fail before implementation (Constitution V).
 ## Phase 8: User Story 7 — Safe updates (P3)
 - [ ] ~~T079~~ Removed — macOS out of scope (ADR-010)
 - [ ] ~~T080~~ Removed — macOS out of scope (ADR-010)
-- [ ] T081 [US7] `GET /v1/client-config` + client poll, forced-update + kill-switch UI — `apps/api/src/modules/config/`, `apps/desktop/src/updates/`
-- [ ] T082 [US7] Tauri updater with signed manifests + staged rollout bucket — `apps/desktop/src-tauri/`, `apps/desktop/src/updates/`
-- [ ] T083 [US7] Release workflow: unsigned Windows `.msi` + `.exe`, SHA-256 checksums (ADR-007) — `.github/workflows/release.yml`
-- [ ] T084 [US7] Installer + update manifest hosting on Cloud Storage + Cloud CDN; install guide for the SmartScreen prompt — `infra/`, `apps/web/`
+- [x] T081 [US7] `GET /v1/client-config` + client poll, forced-update + kill-switch UI — `apps/api/src/modules/config/`, `apps/desktop/src/updates/`
+- [x] T082 [US7] Tauri updater with signed manifests + staged rollout bucket — `apps/desktop/src-tauri/`, `apps/desktop/src/updates/`
+- [x] T083 [US7] Release workflow: unsigned Windows `.msi` + `.exe`, SHA-256 checksums (ADR-007) — `.github/workflows/release.yml`
+- [x] T084 [US7] Installer + update manifest hosting on Cloud Storage + Cloud CDN; install guide for the SmartScreen prompt — `infra/downloads/`, `apps/web/install.html`, runbook `docs/runbooks/release.md`
 
 ## Phase 9: User Story 5 — Usage, limits & upgrade (P3)
 - [ ] T085 [P] [US5] `GET /v1/usage` + Usage & Plan screen — `apps/api/src/modules/usage/`, `apps/desktop/src/settings/Usage.tsx`

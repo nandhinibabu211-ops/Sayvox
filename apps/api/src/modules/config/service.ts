@@ -6,16 +6,7 @@ import { getJson } from "../../lib/redis/client";
 import { keys } from "../../lib/redis/keys";
 import { compareVersions, rolloutBucket } from "./semver";
 
-/** Runtime overrides an operator can set in Redis without a deploy (all fields optional). */
-const ClientOverride = z
-  .object({
-    minClientVersion: z.string(),
-    latestClientVersion: z.string(),
-    killSwitch: z.boolean(),
-    killSwitchMessage: z.string(),
-    rolloutPercent: z.int().min(0).max(100),
-  })
-  .partial();
+import { ClientOverride } from "./override";
 
 const PresetOverride = z.partialRecord(Preset, z.array(z.string().min(1)).min(1));
 

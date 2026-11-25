@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Install Sayvox</title>
+    <meta
+      name="description"
+      content="Download Sayvox for Windows 10 and 11, get past the SmartScreen prompt, and check the download."
+    />
+    <link rel="stylesheet" href="/src/legal.css" />
+  </head>
+  <body>
+    <main class="doc">
+      <h1>Install Sayvox for Windows</h1>
+      <p class="lead">Windows 10 or 11, 64-bit. Install once; Sayvox updates itself after that.</p>
+
+      <div class="downloads">
+        <a
+          class="download primary"
+          href="https://storage.googleapis.com/sayvox-app-2026-releases/releases/latest/Sayvox-setup.exe"
+          >Download for Windows (.exe)</a
+        >
+        <a
+          class="download"
+          href="https://storage.googleapis.com/sayvox-app-2026-releases/releases/latest/Sayvox.msi"
+          >.msi for IT-managed PCs</a
+        >
+      </div>
+
+      <h2 id="smartscreen">“Windows protected your PC”</h2>
+      <p>
+        Sayvox's installer isn't code-signed yet, so Windows SmartScreen warns about it the first
+        time. That's expected. Updates after installing are signed and checked by Sayvox itself, so
+        they can't be tampered with.
+      </p>
+      <ol class="steps">
+        <li>Open the downloaded <code>Sayvox-setup.exe</code>.</li>
+        <li>
+          On the blue <strong>Windows protected your PC</strong> screen, click
+          <strong>More info</strong>. (It's a small link under the message.)
+        </li>
+        <li>
+          Check that it says <strong>App: Sayvox-setup.exe</strong> (or
+          <code>Sayvox_x.y.z_x64-setup.exe</code>), then click <strong>Run anyway</strong>.
+        </li>
+        <li>
+          If Windows asks <strong>Do you want to allow this app to make changes</strong>, click
+          <strong>Yes</strong>.
+        </li>
+        <li>Follow the installer. Sayvox opens and asks you to sign in.</li>
+      </ol>
+      <p class="note">
+        <strong>Windows 11 with Smart App Control on</strong> may block unsigned apps outright, with
+        no Run anyway button. Turning Smart App Control off can be hard to undo, so we don't ask you
+        to change it.
+      </p>
+      <p class="note">
+        Some antivirus tools flag new unsigned apps. If yours quarantines Sayvox, check the download
+        (below) and restore it from quarantine.
+      </p>
+
+      <h2 id="verify">Check the download (optional)</h2>
+      <p>
+        Compare the file's SHA-256 checksum with the one we publish. In PowerShell, in your
+        Downloads folder:
+      </p>
+      <pre><code>Get-FileHash .\Sayvox-setup.exe -Algorithm SHA256</code></pre>
+      <p>
+        The <code>Hash</code> must match the line for <code>Sayvox-setup.exe</code> in
+        <a
+          href="https://storage.googleapis.com/sayvox-app-2026-releases/releases/latest/SHA256SUMS.txt"
+          >SHA256SUMS.txt</a
+        >
+        (capitals don't matter). If it doesn't, delete the file and don't run it.
+      </p>
+
+      <h2 id="after">After installing</h2>
+      <ul>
+        <li>Sayvox lives in the system tray. Click its icon for settings.</li>
+        <li>
+          Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd>, speak, and let go. Your words appear where your
+          cursor is. You can change the hotkey in Settings → General.
+        </li>
+        <li>
+          If dictation says the microphone is off, turn on
+          <em>Let desktop apps access your microphone</em> in Windows Settings → Privacy &amp;
+          security → Microphone.
+        </li>
+        <li>
+          To uninstall: Windows Settings → Apps → Installed apps → Sayvox → Uninstall. To delete
+          your account too, do that in Sayvox first (Settings → Privacy &amp; Account).
+        </li>
+      </ul>
+
+      <p class="footer"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+    </main>
+  </body>
+</html>

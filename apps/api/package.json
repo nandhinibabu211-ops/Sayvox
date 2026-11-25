@@ -13,7 +13,10 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env src/scripts/db.ts migrate",
     "db:seed": "tsx --env-file-if-exists=.env src/scripts/db.ts seed",
-    "db:setup": "tsx --env-file-if-exists=.env src/scripts/db.ts setup"
+    "db:setup": "tsx --env-file-if-exists=.env src/scripts/db.ts setup",
+    "cfg:get": "tsx --env-file-if-exists=.env src/scripts/cfg.ts get",
+    "cfg:set": "tsx --env-file-if-exists=.env src/scripts/cfg.ts set",
+    "cfg:unset": "tsx --env-file-if-exists=.env src/scripts/cfg.ts unset"
   },
   "dependencies": {
     "@opentelemetry/api": "1.10.0",

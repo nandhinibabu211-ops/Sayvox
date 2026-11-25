@@ -54,6 +54,11 @@ export interface PipelineDeps {
   reviewKeys?: (active: boolean) => void;
   /** Injected in tests; built from `reviewKeys` otherwise. */
   reviewGate?: ReviewGate;
+  /**
+   * Kill switch or forced update from `/v1/client-config` (T081): when set, a press shows
+   * this error at once and no session is started.
+   */
+  blocked?: () => Extract<OverlayState, { kind: "error" }> | null;
   /** Local timing log for the Phase 1 gate (debug builds); numbers only. */
   recordTiming?: (r: {
     releaseToInsertMs: number;
@@ -154,6 +159,12 @@ export class DictationPipeline {
     // A new dictation while one waits for review: the user moved on, so discard it.
     this.review.decide("discard");
     if (this.active && !this.active.ended) this.cancel();
+    const blocked = this.deps.blocked?.();
+    if (blocked) {
+      this.active = undefined;
+      this.fail(blocked);
+      return;
+    }
     const session = this.deps.takeSession();
     const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
     const a: Active = {

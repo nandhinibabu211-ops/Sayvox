@@ -7,6 +7,28 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
+    <p id="paused-banner" class="banner" role="status" hidden></p>
+    <div
+      id="gate"
+      class="gate"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="gate-title"
+      aria-describedby="gate-text"
+      hidden
+    >
+      <div class="gate-card">
+        <h2 id="gate-title"></h2>
+        <p id="gate-text"></p>
+        <div class="row">
+          <button id="gate-update" type="button" class="primary">Update now</button>
+          <button id="gate-download" type="button" class="link" hidden>
+            Download the latest version
+          </button>
+        </div>
+        <p id="gate-status" class="hint" aria-live="polite"></p>
+      </div>
+    </div>
     <main id="signed-out" class="onboarding" hidden>
       <h1>Sayvox</h1>
       <p class="sub">

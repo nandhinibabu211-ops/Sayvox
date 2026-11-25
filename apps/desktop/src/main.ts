@@ -13,6 +13,9 @@ import { mountModes } from "./settings/Modes";
 import { mountPreset } from "./settings/Preset";
 import { mountPrivacy } from "./settings/Privacy";
 import { startTelemetry } from "./telemetry";
+import { ClientConfigWatcher } from "./updates/clientConfig";
+import { mountGate } from "./updates/gateView";
+import { fetchClientConfig } from "./updates/runtime";
 
 /** Settings / onboarding window (front-end spec §2–4). */
 
@@ -28,6 +31,11 @@ const store = new SettingsStore({
 });
 const ctx: SettingsContext = { store, api, status: say };
 startTelemetry(api, "settings");
+
+// Forced update / kill switch (T081). The overlay polls too; this window keeps its own view.
+const clientConfig = new ClientConfigWatcher({ fetchConfig: fetchClientConfig });
+mountGate(clientConfig);
+clientConfig.start();
 
 // ── Navigation ──
 type Page = "home" | "general" | "modes" | "preset" | "dictionary" | "privacy";

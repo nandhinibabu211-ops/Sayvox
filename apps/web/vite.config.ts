@@ -9,6 +9,7 @@ export default defineConfig({
         signin: resolve(import.meta.dirname, "signin.html"),
         privacy: resolve(import.meta.dirname, "privacy.html"),
         terms: resolve(import.meta.dirname, "terms.html"),
+        install: resolve(import.meta.dirname, "install.html"),
       },
     },
   },

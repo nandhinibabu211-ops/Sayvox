@@ -17,7 +17,11 @@ export type OverlayState =
   | { kind: "inserted"; text: string; notice?: string }
   /** Paste impossible (elevated target): keep the text so the user can copy it. */
   | { kind: "blocked"; text: string }
-  | { kind: "error"; message: string; action?: "openMicSettings" | "signIn" | "upgrade" };
+  | {
+      kind: "error";
+      message: string;
+      action?: "openMicSettings" | "signIn" | "upgrade" | "update";
+    };
 
 export const INSERTED_HIDE_MS = 800;
 export const ERROR_HIDE_MS = 3_000;
@@ -40,7 +44,7 @@ export function errorFor(code: string): Extract<OverlayState, { kind: "error" }>
     case "UNAUTHENTICATED":
       return { kind: "error", message: "Sign in to Sayvox to dictate.", action: "signIn" };
     case "CLIENT_OUTDATED":
-      return { kind: "error", message: "Update Sayvox to keep dictating." };
+      return { kind: "error", message: "Update Sayvox to keep dictating.", action: "update" };
     case "KILL_SWITCH":
       return { kind: "error", message: "Sayvox is temporarily paused." };
     case "offline":

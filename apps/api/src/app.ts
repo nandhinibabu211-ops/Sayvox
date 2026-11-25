@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import { registerHttpMetrics } from "./lib/otel/metrics";
 import { registerAccountRoutes, type AccountDeps } from "./modules/account/routes";
+import { registerClientConfigRoutes, type ClientConfigDeps } from "./modules/config/routes";
 import { registerAuth, type AuthOptions } from "./modules/auth/plugin";
 import { registerRewriteRoutes, type RewriteDeps } from "./modules/rewrite/routes";
 import { registerSessionRoutes, type SessionDeps } from "./modules/session/routes";
@@ -19,6 +20,8 @@ export interface BuildAppOptions {
   rewrite?: RewriteDeps;
   /** /v1/settings and /v1/dictionary; require `auth`. */
   settings?: SettingsDeps;
+  /** GET /v1/client-config (public). */
+  clientConfig?: ClientConfigDeps;
   /** DELETE /v1/account; requires `auth`. */
   account?: AccountDeps;
   /** POST /v1/telemetry; requires `auth`. */
@@ -35,6 +38,7 @@ export function buildApp({
   settings,
   account,
   telemetry,
+  clientConfig,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
@@ -56,6 +60,7 @@ export function buildApp({
   if (auth) registerAuth(app, auth);
 
   app.get("/healthz", { config: { public: true } }, async () => ({ status: "ok" }));
+  if (clientConfig) registerClientConfigRoutes(app, clientConfig);
   if (session) {
     if (!auth) throw new Error("session routes require auth");
     registerSessionRoutes(app, session);

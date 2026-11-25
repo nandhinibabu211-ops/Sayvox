@@ -31,6 +31,8 @@ export const ClientConfig = z.object({
   killSwitchMessage: z.string().optional(),
   rolloutPercent: z.int().min(0).max(100),
   inRollout: z.boolean(),
+  /** Set when the request carried `x-client-version`: below `minClientVersion`. */
+  updateRequired: z.boolean().optional(),
 });
 export type ClientConfig = z.infer<typeof ClientConfig>;
 
