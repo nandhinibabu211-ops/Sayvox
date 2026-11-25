@@ -47,6 +47,10 @@ pub enum DictationEvent {
     Cancel {
         t: u64,
     },
+    /// Enter (`accept: true`) or Esc while a rewrite waits for review (T071).
+    Review {
+        accept: bool,
+    },
     AudioError {
         code: AudioErrorCode,
     },
@@ -150,6 +154,7 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
                 overlay::hide(&app);
                 send(DictationEvent::Cancel { t });
             }
+            HotkeyEvent::Review { accept } => send(DictationEvent::Review { accept }),
         }
     }
 }
@@ -184,9 +189,11 @@ pub fn start(app: &AppHandle) -> Result<(), String> {
     let (tx, rx) = std::sync::mpsc::channel();
     #[cfg(windows)]
     {
+        // The overlay applies the user's saved chord (`set_hotkey`) as soon as it loads.
         let handle = crate::hotkey::windows::install(
             tx,
             crate::hotkey::state::ChordMachine::DEFAULT_MIN_HOLD_MS,
+            crate::hotkey::Binding::DEFAULT,
         )?;
         if let Ok(mut h) = app.state::<DictationState>().hook.lock() {
             *h = Some(handle);
@@ -209,6 +216,51 @@ pub fn dictation_attach(state: State<'_, DictationState>, chunks: Channel<Invoke
     if let Ok(mut s) = state.sink.0.lock() {
         *s = Some(chunks);
     }
+}
+
+#[cfg(windows)]
+fn with_hook(state: &DictationState, f: impl FnOnce(&crate::hotkey::windows::HookHandle)) {
+    if let Ok(h) = state.hook.lock() {
+        if let Some(h) = h.as_ref() {
+            f(h);
+        }
+    }
+}
+
+/// Switch the hold-to-talk chord (Settings → General, T072). Rejects unsupported chords.
+#[tauri::command]
+pub fn set_hotkey(
+    app: AppHandle,
+    state: State<'_, DictationState>,
+    hotkey: String,
+) -> Result<(), String> {
+    let binding = crate::hotkey::Binding::parse(&hotkey)?;
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_binding(binding));
+    #[cfg(not(windows))]
+    let _ = (&state, binding);
+    if let Some(tray) = app.tray_by_id("sayvox") {
+        let _ = tray.set_tooltip(Some(format!("Sayvox: hold {hotkey} to dictate")));
+    }
+    Ok(())
+}
+
+/// Pause the chord while the hotkey recorder is listening, so trying a chord doesn't dictate.
+#[tauri::command]
+pub fn hotkey_suspend(state: State<'_, DictationState>, suspended: bool) {
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_suspended(suspended));
+    #[cfg(not(windows))]
+    let _ = (&state, suspended);
+}
+
+/// Consume Enter / Esc globally while the overlay shows a rewrite for review (T071).
+#[tauri::command]
+pub fn review_keys(state: State<'_, DictationState>, active: bool) {
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_review(active));
+    #[cfg(not(windows))]
+    let _ = (&state, active);
 }
 
 /// Monotonic ms since app start, for release → inserted timing (same clock as events).
@@ -326,5 +378,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(e, r#"{"kind":"audioError","code":"permissionDenied"}"#);
+        let r = serde_json::to_string(&DictationEvent::Review { accept: true }).unwrap();
+        assert_eq!(r, r#"{"kind":"review","accept":true}"#);
     }
 }

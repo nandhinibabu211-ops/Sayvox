@@ -41,6 +41,8 @@ export const subscriptionStatus = pgEnum("subscription_status", [
   "past_due",
   "cancelled",
   "incomplete",
+  /** Razorpay `halted`: retries exhausted; not entitled, but can still be reactivated. */
+  "halted",
 ]);
 
 export const plans = pgTable("plans", {
@@ -56,7 +58,8 @@ export const plans = pgTable("plans", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
+  /** Contact only, not an identity: users are keyed by auth_provider_id (Identity Platform uid). */
+  email: text("email").notNull(),
   authProviderId: text("auth_provider_id").notNull().unique(),
   planId: text("plan_id")
     .notNull()
@@ -79,6 +82,15 @@ export const subscriptions = pgTable(
     providerSubId: text("provider_sub_id").notNull().unique(),
     status: subscriptionStatus("status").notNull(),
     currentPeriodEnd: ts("current_period_end"),
+    /** Sayvox plan this subscription grants (from the Razorpay plan id, ADR-003). */
+    planId: text("plan_id")
+      .notNull()
+      .references(() => plans.id),
+    /** User asked to cancel; the plan stays until `currentPeriodEnd`. */
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+    /** `created_at` of the newest webhook applied; older, out-of-order events are ignored. */
+    lastEventAt: ts("last_event_at"),
+    createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.providerSubId] })],
 );
@@ -148,6 +160,8 @@ export const sessions = pgTable(
     totalMs: integer("total_ms"),
     sttCommitMs: integer("stt_commit_ms"),
     releaseToInsertMs: integer("release_to_insert_ms"),
+    /** When the /v1/stream proxy charged this session's metered audio (once). */
+    meteredAt: ts("metered_at"),
     status: sessionStatus("status").notNull().default("started"),
     clientVersion: text("client_version"),
     region: text("region"),

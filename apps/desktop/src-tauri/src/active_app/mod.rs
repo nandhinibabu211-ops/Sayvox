@@ -47,9 +47,46 @@ pub fn foreground_app_id() -> String {
     }
 }
 
+/// App ids of running apps for Settings → Modes "Add app" (exe names only, sorted, unique).
+pub fn running_app_ids(exe_paths: &[String]) -> Vec<String> {
+    let mut ids: Vec<String> = exe_paths
+        .iter()
+        .map(|p| app_id(p, ""))
+        .filter(|id| id != "unknown" && id != "sayvox.exe" && id != "sayvox-desktop.exe")
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+#[tauri::command]
+pub fn list_running_apps() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        running_app_ids(&windows::running_exes())
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::app_id;
+    use super::{app_id, running_app_ids};
+
+    #[test]
+    fn running_apps_are_unique_sorted_ids_without_sayvox() {
+        let paths = [
+            r"C:\x\Slack.exe",
+            r"C:\y\cursor.exe",
+            r"C:\x\slack.exe",
+            r"C:\p\Sayvox.exe",
+            "",
+        ]
+        .map(String::from);
+        assert_eq!(running_app_ids(&paths), vec!["cursor.exe", "slack.exe"]);
+    }
 
     #[test]
     fn desktop_apps_use_their_exe_name() {

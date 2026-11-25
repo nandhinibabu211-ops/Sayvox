@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AddDictionaryTermRequest,
   ERROR_STATUS,
   ErrorCode,
   RewriteRequest,
@@ -112,5 +113,41 @@ describe("ERROR_STATUS", () => {
     for (const code of ErrorCode.options) {
       expect(ERROR_STATUS[code]).toBeGreaterThanOrEqual(400);
     }
+  });
+});
+
+describe("Settings (US4)", () => {
+  const base = {
+    preset: "balanced",
+    defaultMode: "dictation",
+    appModeOverrides: {},
+    insertMode: "review",
+    languageHint: "hinglish",
+    hotkey: "Ctrl+Alt",
+  };
+
+  it("accepts the supported hotkeys and language hints", () => {
+    expect(Settings.safeParse(base).success).toBe(true);
+  });
+
+  it("rejects unsupported hotkeys (single keys, letters)", () => {
+    expect(Settings.safeParse({ ...base, hotkey: "Ctrl" }).success).toBe(false);
+    expect(Settings.safeParse({ ...base, hotkey: "Ctrl+Shift+K" }).success).toBe(false);
+  });
+
+  it("rejects unknown language hints", () => {
+    expect(Settings.safeParse({ ...base, languageHint: "klingon" }).success).toBe(false);
+  });
+});
+
+describe("AddDictionaryTermRequest", () => {
+  it("trims and collapses spaces", () => {
+    expect(AddDictionaryTermRequest.parse({ term: "  Zoho   CRM " }).term).toBe("Zoho CRM");
+  });
+
+  it("rejects empty, too long and control-character terms", () => {
+    expect(AddDictionaryTermRequest.safeParse({ term: "   " }).success).toBe(false);
+    expect(AddDictionaryTermRequest.safeParse({ term: "x".repeat(65) }).success).toBe(false);
+    expect(AddDictionaryTermRequest.safeParse({ term: "Zo\u0007ho" }).success).toBe(false);
   });
 });

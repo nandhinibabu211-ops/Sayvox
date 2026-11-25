@@ -1,10 +1,17 @@
-import type { Mode, RewriteRequest, SessionEndRequest, SessionStartResponse } from "@sayvox/shared";
+import type {
+  InsertMode,
+  Mode,
+  RewriteRequest,
+  SessionEndRequest,
+  SessionStartResponse,
+} from "@sayvox/shared";
+import { ReviewGate, type ReviewDecision } from "../overlay/review";
 import { errorFor, type OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
 import { cleanup } from "./cleanup";
 import { DEFAULT_PREFS, nextMode, resolveMode, type ModePrefs } from "./modeResolver";
 import type { RewriteDone } from "./rewriteClient";
-import type { CommitResult, ScribeOptions } from "./scribeClient";
+import type { CommitResult, ScribeStreamOptions } from "./scribeClient";
 import { ScribeError } from "./scribeClient";
 import { SessionExpiredError } from "./session";
 
@@ -15,6 +22,8 @@ export type DictationEvent =
   | { kind: "cancel"; t: number }
   /** Opt-in reply context: text selected in the target app at press (T063). */
   | { kind: "context"; threadContext: string }
+  /** Enter (accept) / Esc while a rewrite waits for review (T071). */
+  | { kind: "review"; accept: boolean }
   | { kind: "audioError"; code: string };
 
 export type InsertOutcome = "inserted" | "blockedElevated" | { failed: { reason: string } };
@@ -28,7 +37,7 @@ export interface ScribeLike {
 
 export interface PipelineDeps {
   takeSession: () => Promise<SessionStartResponse>;
-  newScribe: (opts: ScribeOptions) => ScribeLike;
+  newScribe: (opts: ScribeStreamOptions) => ScribeLike;
   insert: (text: string) => Promise<InsertOutcome>;
   /** Rust monotonic clock (same clock as event `t`). */
   now: () => Promise<number>;
@@ -39,6 +48,17 @@ export interface PipelineDeps {
   rewrite?: (req: RewriteRequest, onToken: (soFar: string) => void) => Promise<RewriteDone>;
   /** User's default mode and per-app overrides (Settings → Modes, Story 2.6). */
   modePrefs?: () => ModePrefs;
+  /** Settings → General: insert at once, or wait for Enter / Esc after a rewrite. */
+  insertMode?: () => InsertMode;
+  /** Turn Rust's global Enter/Esc capture on or off (`review_keys`). */
+  reviewKeys?: (active: boolean) => void;
+  /** Injected in tests; built from `reviewKeys` otherwise. */
+  reviewGate?: ReviewGate;
+  /**
+   * Kill switch or forced update from `/v1/client-config` (T081): when set, a press shows
+   * this error at once and no session is started.
+   */
+  blocked?: () => Extract<OverlayState, { kind: "error" }> | null;
   /** Local timing log for the Phase 1 gate (debug builds); numbers only. */
   recordTiming?: (r: {
     releaseToInsertMs: number;
@@ -62,11 +82,17 @@ interface Active {
   threadContext?: string;
 }
 
+/** Server error text for quota errors ("Monthly limit reached"); undefined otherwise. */
+function quotaMessage(err: unknown): string | undefined {
+  return err instanceof ApiError && err.code === "QUOTA_EXCEEDED" ? err.message : undefined;
+}
+
 function errorCode(err: unknown): string {
   if (err instanceof SessionExpiredError) return "SESSION_EXPIRED";
   if (err instanceof ApiError) return err.code;
-  if (err instanceof ScribeError)
-    return err.providerType === "quota_exceeded" ? "QUOTA_EXCEEDED" : "scribe";
+  // ElevenLabs `quota_exceeded` is OUR provider account running out, not the user's plan:
+  // telling the user to upgrade would be wrong, so it's a generic service error.
+  if (err instanceof ScribeError) return "scribe";
   if (err instanceof TypeError) return "offline";
   return "unknown";
 }
@@ -78,9 +104,16 @@ function errorCode(err: unknown): string {
 export class DictationPipeline {
   private active: Active | undefined;
   private readonly schedule: (fn: () => void, ms: number) => void;
+  private readonly review: ReviewGate;
 
   constructor(private readonly deps: PipelineDeps) {
     this.schedule = deps.schedule ?? ((fn, ms) => void setTimeout(fn, ms));
+    this.review = deps.reviewGate ?? new ReviewGate({ captureKeys: (on) => deps.reviewKeys?.(on) });
+  }
+
+  /** Overlay buttons in the review state (same as Enter / Esc). */
+  decideReview(d: ReviewDecision): void {
+    this.review.decide(d);
   }
 
   private show(s: OverlayState): void {
@@ -107,6 +140,9 @@ export class DictationPipeline {
         return this.release(ev.t, ev.audioSeconds);
       case "cancel":
         return this.cancel();
+      case "review":
+        this.review.decide(ev.accept ? "insert" : "discard");
+        return;
       case "context":
         if (this.active && !this.active.ended) this.active.threadContext = ev.threadContext;
         return;
@@ -126,7 +162,15 @@ export class DictationPipeline {
   }
 
   private press(app: string): void {
+    // A new dictation while one waits for review: the user moved on, so discard it.
+    this.review.decide("discard");
     if (this.active && !this.active.ended) this.cancel();
+    const blocked = this.deps.blocked?.();
+    if (blocked) {
+      this.active = undefined;
+      this.fail(blocked);
+      return;
+    }
     const session = this.deps.takeSession();
     const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
     const a: Active = {
@@ -138,10 +182,8 @@ export class DictationPipeline {
       mode,
       scribe: session.then((s) => {
         const scribe = this.deps.newScribe({
-          token: s.scribeToken,
-          keyterms: s.keyterms,
-          languageHint: s.languageHint ?? null,
-          refreshToken: async () => (await this.deps.takeSession()).scribeToken,
+          ticket: s.streamTicket,
+          refreshTicket: async () => (await this.deps.takeSession()).streamTicket,
           onPartial: (text) => {
             if (this.active !== a || a.ended) return;
             a.partial = text;
@@ -157,7 +199,7 @@ export class DictationPipeline {
     a.scribe.catch((err: unknown) => {
       if (this.active === a && !a.ended) {
         a.ended = true;
-        this.fail(errorFor(errorCode(err)));
+        this.fail(errorFor(errorCode(err), quotaMessage(err)));
       }
     });
   }
@@ -176,7 +218,7 @@ export class DictationPipeline {
       for (const c of a.pending.splice(0)) scribe.sendChunk(c);
       result = await scribe.commit();
     } catch (err) {
-      this.fail(errorFor(errorCode(err)));
+      this.fail(errorFor(errorCode(err), quotaMessage(err)));
       const s = await a.session.catch(() => undefined);
       if (s) void this.end(a, s.sessionId, audioSeconds, "failed", 0, 0);
       return;
@@ -192,7 +234,9 @@ export class DictationPipeline {
 
     let text = cleaned;
     let notice: string | undefined;
-    if (a.mode !== "dictation" && this.deps.rewrite) {
+    let reviewMs = 0;
+    const rewritten = a.mode !== "dictation" && this.deps.rewrite !== undefined;
+    if (rewritten && this.deps.rewrite) {
       this.show({ kind: "rewriting", text: "", mode: a.mode });
       try {
         const done = await this.deps.rewrite(
@@ -214,11 +258,33 @@ export class DictationPipeline {
       }
     }
 
+    // Review before insert applies to AI rewrites (front-end spec §3.2: Rewriting → Review).
+    if (rewritten && this.deps.insertMode?.() === "review") {
+      const opened = await this.deps.now();
+      this.show(
+        notice
+          ? { kind: "review", text, mode: a.mode, notice }
+          : { kind: "review", text, mode: a.mode },
+      );
+      const decision = await this.review.wait();
+      reviewMs = Math.max(0, (await this.deps.now()) - opened);
+      if (decision === "discard") {
+        // A new press may already own the overlay; only hide if this one still does.
+        if (this.active === a) this.show({ kind: "hidden" });
+        void this.end(a, session.sessionId, audioSeconds, "discarded", result.commitMs, 0);
+        return;
+      }
+    }
+
     this.show({ kind: "inserting", text });
     const outcome = await this.deps
       .insert(text)
       .catch((e: unknown): InsertOutcome => ({ failed: { reason: String(e) } }));
-    const releaseToInsertMs = Math.max(0, Math.round((await this.deps.now()) - releaseT));
+    // Time the user spent reviewing isn't Sayvox latency.
+    const releaseToInsertMs = Math.max(
+      0,
+      Math.round((await this.deps.now()) - releaseT - reviewMs),
+    );
 
     if (outcome === "inserted") {
       this.show(notice ? { kind: "inserted", text, notice } : { kind: "inserted", text });
