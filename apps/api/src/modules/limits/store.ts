@@ -52,6 +52,21 @@ export async function takeRateToken(
   return { allowed: allowed === 1, retryAfterMs: wait };
 }
 
+/**
+ * Count one rewrite for `sessionId`; false once `max` were already started. The desktop app
+ * sends one rewrite per press and never retries, so 2 leaves room for a duplicate request
+ * while stopping a modified client from looping LLM calls on one open session.
+ */
+export async function claimRewrite(redis: Redis, sessionId: string, max = 2): Promise<boolean> {
+  const key = keys.rewriteClaims(sessionId);
+  const [[, count]] = (await redis
+    .multi()
+    .incr(key)
+    .expire(key, TTL_SECONDS.rewriteClaims)
+    .exec()) as [[Error | null, number], [Error | null, number]];
+  return count <= max;
+}
+
 const dayString = (d: Date) => d.toISOString().slice(0, 10);
 const monthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 const nextMonthStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));

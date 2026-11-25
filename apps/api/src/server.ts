@@ -11,6 +11,7 @@ import { keys } from "./lib/redis/keys";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
+import { claimRewrite } from "./modules/limits/store";
 import { closePool, pooledFetch } from "./lib/openrouter/pool";
 import { createOpenRouterClient } from "./lib/openrouter/stream";
 import { createDbRewriteStore } from "./modules/rewrite/store";
@@ -91,6 +92,7 @@ const app = buildApp({
     config,
     complete: createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch }),
     prices: () => prices,
+    claim: (sessionId) => claimRewrite(redis, sessionId),
   },
   settings: { db: database.db, redis },
   account: {

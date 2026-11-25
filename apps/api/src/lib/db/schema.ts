@@ -58,7 +58,8 @@ export const plans = pgTable("plans", {
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
-  email: text("email").notNull().unique(),
+  /** Contact only, not an identity: users are keyed by auth_provider_id (Identity Platform uid). */
+  email: text("email").notNull(),
   authProviderId: text("auth_provider_id").notNull().unique(),
   planId: text("plan_id")
     .notNull()

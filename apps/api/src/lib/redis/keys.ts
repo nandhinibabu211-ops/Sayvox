@@ -15,6 +15,8 @@ export const TTL_SECONDS = {
   quotaDay: 48 * 3600,
   quotaMonth: 40 * 86_400,
   settings: 5 * 60,
+  /** Outlives the longest a session can stay `started` (token TTL + max session, ~20 min). */
+  rewriteClaims: 30 * 60,
   /** Outlives any ID token issued before the deletion (1 h) with margin. */
   accountDeleted: 2 * 3600,
 } as const;
@@ -26,6 +28,8 @@ export const keys = {
   settings: (userId: string) => `settings:${userId}`,
   /** Tombstone keyed by Identity Platform uid (Story 5.7): refuse its tokens after deletion. */
   accountDeleted: (authProviderId: string) => `deleted:${authProviderId}`,
+  /** Rewrites started for one session (capped, so a client can't loop paid LLM calls). */
+  rewriteClaims: (sessionId: string) => `rw:${sessionId}`,
   clientConfig: () => "cfg:client",
   presets: () => "cfg:presets",
   /** Every key that belongs to one user, for account deletion (Story 5.7). */
