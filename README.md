@@ -23,12 +23,14 @@ pnpm --filter @sayvox/desktop tauri dev  # desktop shell
 **Checks**
 ```powershell
 pnpm check       # lint + typecheck + unit tests (all TypeScript packages)
+pnpm --filter @sayvox/api test:integration   # Postgres + Redis tests (needs Docker running)
+pnpm --filter @sayvox/api db:setup           # apply migrations + seed plans to DATABASE_URL
 pnpm lint:rust   # cargo fmt --check + clippy -D warnings
 pnpm test:rust   # cargo test
 pnpm format      # prettier
 ```
 
-**Layout:** `apps/desktop` (Tauri v2: Vite + TS UI, Rust core in `src-tauri/`), `apps/api` (Fastify 5), `packages/shared` (Zod schemas from the OpenAPI contract), `packages/prompts` (system prompts + version). Planned folders such as `eval/` and `infra/` arrive with their stories.
+**Layout:** `apps/desktop` (Tauri v2: Vite + TS UI, Rust core in `src-tauri/`), `apps/api` (Fastify 5, Drizzle + Postgres, Redis), `apps/web` (hosted sign-in page for Firebase Hosting), `packages/shared` (Zod schemas from the OpenAPI contract), `packages/prompts` (system prompts + version). Planned folders such as `eval/` and `infra/` arrive with their stories.
 
 ## Planning artifacts
 

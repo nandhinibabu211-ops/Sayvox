@@ -21,16 +21,16 @@ Tests are written first and must fail before implementation (Constitution V).
 - [x] T009 [P] Structured logger with transcript redaction + test — `apps/api/src/lib/logger.ts`
 
 ## Phase 2: Foundational (blocks all user stories)
-- [ ] T010 Drizzle schema for all tables per data-model.md — `apps/api/src/lib/db/schema.ts`
-- [ ] T011 Migrations + seed (`free`, `pro` plans) — `apps/api/drizzle/`
-- [ ] T012 [P] Redis client + key helpers — `apps/api/src/lib/redis/`
-- [ ] T013 [P] Error envelope + error codes — `packages/shared/src/errors.ts`, `apps/api/src/plugins/errors.ts`
-- [ ] T014 JWT auth plugin (JWKS verify, lazy user + settings create) + tests — `apps/api/src/modules/auth/`
-- [ ] T015 [P] Config module: presets, model slugs, kill switch, min version (env + Redis) — `apps/api/src/modules/config/`
-- [ ] T016 [P] OTel metrics/traces bootstrap — `apps/api/src/lib/otel/`
-- [ ] T017 [P] Client API wrapper with JWT injection + Windows Credential Manager storage — `apps/desktop/src/services/apiClient.ts`, `src-tauri/src/credentials/`
-- [ ] T018 Client sign-in flow via system browser + `sayvox://auth` deep link — `apps/desktop/src/onboarding/`
-- [ ] T019 **Research R1/R2 verification** — record confirmed ElevenLabs details and OpenRouter details (ADR-008) in `research.md` and contract files
+- [x] T010 Drizzle schema for all tables per data-model.md — `apps/api/src/lib/db/schema.ts`
+- [x] T011 Migrations + seed (`free`, `pro` plans) — `apps/api/drizzle/`
+- [x] T012 [P] Redis client + key helpers — `apps/api/src/lib/redis/`
+- [x] T013 [P] Error envelope + error codes — `packages/shared/src/errors.ts`, `apps/api/src/plugins/errors.ts`
+- [x] T014 JWT auth plugin (JWKS verify, lazy user + settings create) + tests — `apps/api/src/modules/auth/`
+- [x] T015 [P] Config module: presets, model slugs, kill switch, min version (env + Redis) — `apps/api/src/modules/config/`
+- [x] T016 [P] OTel metrics/traces bootstrap — `apps/api/src/lib/otel/`
+- [x] T017 [P] Client API wrapper with JWT injection + Windows Credential Manager storage — `apps/desktop/src/services/apiClient.ts`, `src-tauri/src/credentials/`
+- [x] T018 Client sign-in flow via system browser + `sayvox://auth` deep link — `apps/desktop/src/onboarding/`
+- [x] T019 **Research R1/R2 verification** — record confirmed ElevenLabs details and OpenRouter details (ADR-008) in `research.md` and contract files
 
 **Checkpoint**: foundation ready; user stories can begin.
 

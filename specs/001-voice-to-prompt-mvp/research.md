@@ -2,21 +2,36 @@
 
 Each item: **Decision · Rationale · Alternatives considered**. Items marked **VERIFY** must be confirmed against live provider documentation before implementing the dependent task.
 
-## R1 — Speech-to-text provider and protocol (VERIFY)
-- **Decision**: ElevenLabs Scribe v3 Live over realtime WebSocket; 16 kHz mono PCM16; `commit_strategy=manual`; single-use token minted per session via `POST /v1/single-use-token/realtime_scribe`.
-- **Rationale**: Streams partials during speech; commit in ~150–300 ms; $0.22/audio hour; keyterms support for names/jargon; token keeps the API key off the client.
-- **Alternatives**: Batch Scribe v3 ($0.20/hr) — adds upload-after-release delay. Proxying audio through backend — adds latency and bandwidth cost.
-- **To verify**: endpoint paths, v3 Live `model_id`, message names (`input_audio_chunk`, `partial_transcript`, `committed_transcript`, commit flag), token TTL, keyterm parameter name and limits, language hint parameter, per-plan concurrency limit, zero-retention availability. Record findings here.
+## R1 — Speech-to-text provider and protocol (VERIFIED 2026-11-25, T019)
+- **Decision**: ElevenLabs Scribe v3 Live (`model_id=scribe_v3_live`) over realtime WebSocket; 16 kHz mono PCM16; `commit_strategy=manual`; single-use token minted per session via `POST /v1/single-use-token/realtime_scribe`.
+- **Rationale**: Streams partials during speech; commit in ~150–300 ms; $0.22/audio hour (architecture doc; not stated on the API pages); keyterms for names/jargon; token keeps the API key off the client.
+- **Alternatives**: Batch Scribe v3 ($0.20/hr) — adds upload-after-release delay. `scribe_v2_realtime` (the API default) — older model. Proxying audio through backend — adds latency and bandwidth cost.
+- **Verified facts** (sources: elevenlabs.io/docs/api-reference/speech-to-text/v-1-speech-to-text-realtime, /docs/capabilities/speech-to-text, /docs/api-reference/tokens/create):
+  - WS URL `wss://api.elevenlabs.io/v1/speech-to-text/realtime`; query params `model_id` (`scribe_v3_live` | `scribe_v2_realtime`), `token`, `audio_format` (`pcm_16000` default), `commit_strategy` (`manual` default | `vad` | `turn_prediction`), `language_code`, `keyterms` (array), `enable_logging`, `keepalive_interval_ms` (500–10 000).
+  - Client chunk: `{ "message_type": "input_audio_chunk", "audio_base_64", "commit": bool, "sample_rate": 16000 }` — all four fields required on every chunk; commit by sending `commit: true`.
+  - Server messages: `session_started`, `partial_transcript` (`text`), `committed_transcript` (`text`); errors `error`, `auth_error`, `quota_exceeded`, `commit_throttled`, `rate_limited`, `queue_overflow`, `resource_exhausted`, `session_time_limit_exceeded`, `input_error`, `invalid_request`, `chunk_size_exceeded`, `insufficient_audio_activity`, `transcriber_error`, `unaccepted_terms` (field `error`).
+  - Token: response `{ "token" }`; **expires after 15 minutes**, consumed on use; optional query `max_session_duration_seconds` closes the session server-side — use it to enforce `maxSessionSeconds` (Story 2.3) at the provider, not only on the client.
+  - Keyterms limit (realtime): **up to 100 terms and 1 000 characters in total** — Story 2.7 must cap what it sends.
+  - Billing counts every second of audio sent, **including silence**, so the client must stop streaming on release and never pre-open the mic stream to the provider.
+  - Zero retention: `enable_logging=false`, **enterprise plans only**. On other plans ElevenLabs may log audio/transcripts; the privacy page (Story 5.6) must say so until an enterprise plan is in place.
+  - Regional hosts exist (`api.us`, `api.eu.residency`, `api.in.residency`, `api.sg.residency`) — the India residency host is an option to evaluate for latency/DPDP.
+- **Still open**: per-plan concurrency limit (see elevenlabs.io/docs/overview/models#concurrency-and-priority; confirm with ElevenLabs before Story 6.5).
 
-## R2 — LLM gateway and model slugs (VERIFY)
-- **Decision (owner, ADR-008)**: OpenRouter chat completions with `models: [primary, ...fallbacks]`, `stream: true`, `max_tokens: 600`, `temperature: 0.2`, lowest reasoning.
-- **Rationale**: One API, one prepaid bill (5.5 % credit fee), built-in fallback list.
+## R2 — LLM gateway and model slugs (VERIFIED 2026-11-25, T019)
+- **Decision (owner, ADR-008)**: OpenRouter chat completions, `stream: true`, `max_tokens: 600`, `temperature: 0.2`, `provider: { "data_collection": "deny", "zdr": true }`, per-model lowest reasoning effort.
+- **Rationale**: One API, one prepaid bill (5.5 % credit fee), all three model families.
 - **Alternatives**: Direct provider SDKs (three code paths, three bills); self-hosted LiteLLM (deferred).
-- **To verify**: exact slugs for GPT-6 Luna, Claude Haiku 5.5, Gemini 3.5 Flash-Lite; reasoning-effort parameter shape; provider routing options for no-training/no-retention (`provider.data_collection`), SSE chunk format.
 - **Rejected**: Gemini API (Gemini-only fallback; paid tier needed for privacy) and Vertex AI (not needed).
+- **Verified facts** (sources: openrouter.ai/api/v1/models, /docs/features/provider-routing, /docs/use-cases/reasoning-tokens, /docs/guides/routing/model-fallbacks, /docs/api-reference/streaming):
+  - Slugs exist exactly as configured: `anthropic/claude-haiku-5.5`, `openai/gpt-6-luna`, `google/gemini-3.5-flash-lite`. Prices per 1M tokens (in/out): Haiku 5.5 $0.10/$0.50, GPT-6 Luna $0.10/$0.50, Gemini 3.5 Flash-Lite $0.30/$2.50.
+  - **Reasoning differs per model**: Haiku 5.5 and GPT-6 Luna accept `reasoning: { "effort": "none" }` (off). Gemini 3.5 Flash-Lite has `mandatory: true`; supported efforts `high|medium|low|minimal`, so its lowest is `"minimal"` and `"none"` is invalid. One shared request body can't serve all three, so the backend sends **one attempt per model with that model's own effort** (map in config). Reasoning tokens count against `max_tokens`.
+  - Privacy routing: `provider.data_collection: "deny"` (only providers that don't collect data) and `provider.zdr: true` (zero-data-retention endpoints only).
+  - `models` array = OpenRouter-side fallback on any error (rate limit, downtime, moderation, context). Not used, because each attempt needs a different `reasoning` value and our own 1.5 s TTFT deadline (R3).
+  - SSE: `data: <json>` lines; keep-alive comment `: OPENROUTER PROCESSING` (skip lines starting with `:`); end sentinel `data: [DONE]`; `usage` arrives in a final chunk just before `[DONE]`; a mid-stream failure is a chunk with top-level `error` (`code`, `message`) and `finish_reason: "error"`; pre-stream errors are JSON with HTTP 400/401/402/429/502/503.
+  - Response header `X-Generation-Id` identifies the generation (log it; never the text).
 
 ## R3 — TTFT fallback strategy
-- **Decision**: Backend runs one model attempt at a time with a 1.5 s first-token deadline, aborting and moving to the next slug on miss/error (in addition to OpenRouter's own `models` fallback for hard errors).
+- **Decision**: Backend runs one model attempt at a time (single `model`, that model's reasoning effort) with a 1.5 s first-token deadline, aborting and moving to the next slug on miss/error. OpenRouter's `models` array is not used (see R2).
 - **Rationale**: OpenRouter fallback triggers on errors, not on slow first tokens; the latency budget needs an explicit deadline.
 - **Alternatives**: Hedged parallel requests — lower tail latency but up to 2× cost; revisit if p95 misses budget.
 
