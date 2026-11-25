@@ -1,0 +1,103 @@
+:root {
+  --bg: rgb(28 28 32 / 0.94);
+  --fg: #f4f4f6;
+  --muted: #b4b4be;
+  --listen: #ff5a5f;
+  --busy: #8b85ff;
+  --ok: #3ccf8e;
+  --warn: #ffb547;
+  color-scheme: dark;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: rgb(255 255 255 / 0.96);
+    --fg: #1a1a1f;
+    --muted: #5c5c66;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+#overlay {
+  box-sizing: border-box;
+  height: 64px;
+  margin: 0 auto;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+[data-state="listening"] .dot {
+  background: var(--listen);
+  animation: pulse 1s ease-in-out infinite;
+}
+[data-state="transcribing"] .dot,
+[data-state="inserting"] .dot {
+  background: var(--busy);
+}
+[data-state="inserted"] .dot {
+  background: var(--ok);
+}
+[data-state="error"] .dot,
+[data-state="blocked"] .dot {
+  background: var(--warn);
+}
+
+#label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#text {
+  margin: 0;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* Newest words stay visible while partials grow. */
+  direction: rtl;
+  text-align: left;
+}
+
+#action {
+  padding: 5px 10px;
+  border: 1px solid var(--busy);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-state="listening"] .dot {
+    animation: none;
+  }
+}

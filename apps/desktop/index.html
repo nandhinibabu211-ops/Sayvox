@@ -7,7 +7,43 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main id="app"></main>
+    <main>
+      <h1>Sayvox</h1>
+      <p class="sub">
+        Hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd>, speak, release. Your words appear where your cursor
+        is.
+      </p>
+
+      <section id="signed-out" hidden>
+        <h2>Sign in</h2>
+        <p>
+          Sign in once on this PC. A browser tab opens; come back here when it says you're done.
+        </p>
+        <button id="sign-in" type="button" class="primary">Sign in</button>
+      </section>
+
+      <section id="signed-in" hidden>
+        <h2>Ready</h2>
+        <p>Signed in as <strong id="email"></strong>.</p>
+        <label class="try"
+          >Try it: click in this box, hold <kbd>Ctrl</kbd> + <kbd>Shift</kbd> and say
+          <em>"Schedule the demo for Friday"</em>.
+          <textarea id="try" rows="3"></textarea>
+        </label>
+        <button id="sign-out" type="button" class="link">Sign out</button>
+      </section>
+
+      <section>
+        <h2>Microphone</h2>
+        <p>
+          If dictation says microphone access is off, turn on
+          <em>Let desktop apps access your microphone</em> in Windows settings.
+        </p>
+        <button id="mic-settings" type="button">Open microphone settings</button>
+      </section>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

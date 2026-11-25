@@ -72,6 +72,8 @@ Count per user ≤ `plans.dictionary_limit`.
 | audio_seconds | numeric(8,2) | clamped ≤ max_session_seconds |
 | model_used | text | nullable (dictation fast path) |
 | fallback_used | bool | default false |
+| keyterms_used | bool | default false; keyterms sent to Scribe (+$0.08/h STT cost) |
+| max_session_seconds | int | default 300; cap given to client and ElevenLabs (`max_session_duration_seconds`) |
 | input_tokens / output_tokens | int | |
 | ttft_ms / total_ms | int | backend LLM timings |
 | stt_commit_ms / release_to_insert_ms | int | client timings |

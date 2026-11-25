@@ -1,14 +1,22 @@
 //! Sayvox desktop core (Windows only, ADR-010).
 //!
-//! Modules so far: `credentials` (Windows Credential Manager, T017) and the sign-in
-//! loopback callback (`auth`, `auth_callback`, T018). Native dictation modules arrive in
-//! later stories: `hotkey` (1.3), `audio` (1.4), `insert` (1.7), `active_app` (3.4).
+//! - `hotkey`: Ctrl+Shift hold-to-talk (`WH_KEYBOARD_LL`), `audio`: cpal → 16 kHz PCM16,
+//!   `insert`: clipboard paste + restore, `overlay`: non-activating notch window,
+//!   `dictation`: wires them together and talks to the web side.
+//! - `credentials` + `auth*`: Windows Credential Manager and the loopback sign-in callback.
 
+mod audio;
 mod auth;
 mod auth_callback;
 mod credentials;
+mod dictation;
+mod hotkey;
+mod insert;
+mod overlay;
 
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{Manager, WindowEvent};
 
 /// Product name shown in the shell; kept here so a unit test exercises the crate in CI.
 pub const PRODUCT_NAME: &str = "Sayvox";
@@ -19,6 +27,36 @@ fn focus_main_window(app: &tauri::AppHandle) {
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Sayvox", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&settings, &quit])?;
+    let mut tray = TrayIconBuilder::with_id("sayvox")
+        .tooltip("Sayvox: hold Ctrl+Shift to dictate")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, e| match e.id.as_ref() {
+            "settings" => focus_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, e| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = e
+            {
+                focus_main_window(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -38,14 +76,43 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 app.deep_link().register_all()?;
             }
-            let _ = app;
+            build_tray(app)?;
+            overlay::configure(app.handle());
+            dictation::start(app.handle())?;
+
+            // First run (not signed in): open the settings window so onboarding shows.
+            let signed_in = credentials::read(
+                &credentials::WindowsCredentialStore,
+                credentials::Slot::AuthSession,
+            )
+            .ok()
+            .flatten()
+            .is_some();
+            if !signed_in {
+                focus_main_window(app.handle());
+            }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the settings window keeps Sayvox running in the tray.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             auth::auth_begin,
             credentials::credentials_get,
             credentials::credentials_set,
             credentials::credentials_delete,
+            dictation::dictation_attach,
+            dictation::dictation_now,
+            dictation::insert_text,
+            dictation::copy_text,
+            dictation::timing_append,
+            overlay::overlay_hide,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sayvox");

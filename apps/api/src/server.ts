@@ -7,6 +7,8 @@ import { createRedis } from "./lib/redis/client";
 import { ConfigService } from "./modules/config/service";
 import { createUserResolver } from "./modules/auth/users";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
+import { createScribeTokenMinter } from "./lib/elevenlabs/token";
+import { startSweeper } from "./modules/session/sweeper";
 
 const env = loadEnv();
 const logger = createLogger({ level: env.LOG_LEVEL });
@@ -27,8 +29,7 @@ const database = createDb(env.DATABASE_URL, env.DB_POOL_MAX);
 const redis = createRedis(env.REDIS_URL);
 await redis.connect();
 
-// Constructed now so later stories (session, settings, rewrite) can take it as a dependency.
-export const config = new ConfigService(env, redis);
+const config = new ConfigService(env, redis);
 
 const app = buildApp({
   logger,
@@ -39,10 +40,22 @@ const app = buildApp({
     }),
     resolveUser: createUserResolver(database.db),
   },
+  session: {
+    db: database.db,
+    redis,
+    config,
+    region: env.REGION,
+    mintToken: createScribeTokenMinter({ apiKey: env.ELEVENLABS_API_KEY }),
+  },
 });
+
+const stopSweeper = startSweeper(database.db, (err) =>
+  app.log.warn({ errName: (err as Error).name }, "session sweep failed"),
+);
 
 const shutdown = async (signal: string): Promise<void> => {
   app.log.info({ signal }, "shutting down");
+  stopSweeper();
   await app.close();
   await Promise.allSettled([database.close(), redis.quit(), telemetry.shutdown()]);
   process.exit(0);

@@ -1,0 +1,15 @@
+{
+  "name": "@sayvox/eval",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "timing:report": "tsx timing/report.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}

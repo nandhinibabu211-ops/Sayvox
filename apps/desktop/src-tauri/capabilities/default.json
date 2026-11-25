@@ -1,15 +1,24 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions for the main Sayvox window",
-  "windows": ["main"],
+  "description": "Permissions for the Sayvox settings and overlay windows",
+  "windows": ["main", "overlay"],
   "permissions": [
     "core:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "core:event:default",
     "deep-link:default",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://sayvox-app-2026.web.app/*" }]
+      "allow": [
+        {
+          "url": "https://sayvox-app-2026.web.app/*"
+        },
+        {
+          "url": "ms-settings:privacy-microphone"
+        }
+      ]
     }
   ]
 }

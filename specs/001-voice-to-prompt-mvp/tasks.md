@@ -41,29 +41,29 @@ Tests are written first and must fail before implementation (Constitution V).
 **Independent Test**: 20 scripted phrases in a text editor, all inserted correctly < 1 s.
 
 ### Tests (write first)
-- [ ] T020 [P] [US1] Hotkey state machine unit tests (press/release/cancel/repeat) — `src-tauri/src/hotkey/state.rs`
-- [ ] T021 [P] [US1] Resampler + chunker unit tests (48k/44.1k → 16k) — `src-tauri/src/audio/tests.rs`
-- [ ] T022 [P] [US1] Contract test `/v1/session/start` (quota, token, keyterms) with mocked ElevenLabs — `apps/api/test/contract/session-start.test.ts`
-- [ ] T023 [P] [US1] Contract test `/v1/session/{id}/end` (clamp, idempotent) — `apps/api/test/contract/session-end.test.ts`
-- [ ] T024 [P] [US1] Mock Scribe WS server (partials, commit, drop) — `apps/desktop/test/mocks/scribeServer.ts`
-- [ ] T025 [P] [US1] Local dictation cleanup unit tests (fillers, self-corrections, casing) — `apps/desktop/src/services/cleanup.test.ts`
+- [x] T020 [P] [US1] Hotkey state machine unit tests (press/release/cancel/repeat) — `src-tauri/src/hotkey/state.rs`
+- [x] T021 [P] [US1] Resampler + chunker unit tests (48k/44.1k → 16k) — `src-tauri/src/audio/tests.rs`
+- [x] T022 [P] [US1] Contract test `/v1/session/start` (quota, token, keyterms) with mocked ElevenLabs — `apps/api/test/contract/session-start.test.ts`
+- [x] T023 [P] [US1] Contract test `/v1/session/{id}/end` (clamp, idempotent) — `apps/api/test/contract/session-end.test.ts`
+- [x] T024 [P] [US1] Mock Scribe WS server (partials, commit, drop) — `apps/desktop/test/mocks/scribeServer.ts`
+- [x] T025 [P] [US1] Local dictation cleanup unit tests (fillers, self-corrections, casing) — `apps/desktop/src/services/cleanup.test.ts`
 
 ### Implementation
-- [ ] T026 [US1] Tray + pre-created non-activating overlay window — `src-tauri/src/main.rs`, `tauri.conf.json`
-- [ ] T027 [US1] Windows hotkey backend (`WH_KEYBOARD_LL`) — `src-tauri/src/hotkey/windows.rs` (ADR-010)
-- [ ] T028 [US1] Audio capture (cpal) + resample + ring buffer — `src-tauri/src/audio/`
-- [ ] T029 [US1] Limits module: rate limit, daily/monthly quota, maxSessionSeconds — `apps/api/src/modules/limits/`
-- [ ] T030 [US1] ElevenLabs token client — `apps/api/src/lib/elevenlabs/token.ts`
-- [ ] T031 [US1] `POST /v1/session/start` — `apps/api/src/modules/session/start.ts`
-- [ ] T032 [US1] `POST /v1/session/{id}/end` + `usage_daily` upsert — `apps/api/src/modules/session/end.ts`
-- [ ] T033 [US1] Abandoned-session sweeper — `apps/api/src/modules/session/sweeper.ts`
-- [ ] T034 [US1] Token cache with background pre-fetch — `apps/desktop/src/services/tokenCache.ts`
-- [ ] T035 [US1] Scribe WS client (stream, partials, manual commit, one retry with buffer replay) — `apps/desktop/src/services/scribeClient.ts`
-- [ ] T036 [US1] Local dictation cleanup — `apps/desktop/src/services/cleanup.ts`
-- [ ] T037 [US1] Insert module: clipboard save → paste → restore in finally — `src-tauri/src/insert/`
-- [ ] T038 [US1] Overlay states Hidden/Listening/Transcribing/Inserting/Inserted/Error — `apps/desktop/src/overlay/`
-- [ ] T039 [US1] Onboarding permissions (Microphone, Accessibility) — `apps/desktop/src/onboarding/permissions.tsx`
-- [ ] T040 [US1] Timing harness for 20 phrases + Phase 1 gate report — `eval/timing/`, `eval/results/`
+- [x] T026 [US1] Tray + pre-created non-activating overlay window — `src-tauri/src/main.rs`, `tauri.conf.json`
+- [x] T027 [US1] Windows hotkey backend (`WH_KEYBOARD_LL`) — `src-tauri/src/hotkey/windows.rs` (ADR-010)
+- [x] T028 [US1] Audio capture (cpal) + resample + ring buffer — `src-tauri/src/audio/`
+- [x] T029 [US1] Limits module: rate limit, daily/monthly quota, maxSessionSeconds — `apps/api/src/modules/limits/`
+- [x] T030 [US1] ElevenLabs token client — `apps/api/src/lib/elevenlabs/token.ts`
+- [x] T031 [US1] `POST /v1/session/start` — `apps/api/src/modules/session/start.ts`
+- [x] T032 [US1] `POST /v1/session/{id}/end` + `usage_daily` upsert — `apps/api/src/modules/session/end.ts`
+- [x] T033 [US1] Abandoned-session sweeper — `apps/api/src/modules/session/sweeper.ts`
+- [x] T034 [US1] Token cache with background pre-fetch — `apps/desktop/src/services/tokenCache.ts`
+- [x] T035 [US1] Scribe WS client (stream, partials, manual commit, one retry with buffer replay) — `apps/desktop/src/services/scribeClient.ts`
+- [x] T036 [US1] Local dictation cleanup — `apps/desktop/src/services/cleanup.ts`
+- [x] T037 [US1] Insert module: clipboard save → paste → restore in finally — `src-tauri/src/insert/`
+- [x] T038 [US1] Overlay states Hidden/Listening/Transcribing/Inserting/Inserted/Error — `apps/desktop/src/overlay/`
+- [x] T039 [US1] Onboarding permissions (Windows microphone access; no Accessibility step on Windows) — `apps/desktop/src/onboarding/permissions.ts`
+- [x] T040 [US1] Timing harness for 20 phrases + Phase 1 gate report — `eval/timing/`, `eval/results/` *(harness built; the gate run itself needs a real ElevenLabs key and a person dictating the 20 phrases)*
 
 **Checkpoint**: US1 independently functional — Phase 1 gate.
 

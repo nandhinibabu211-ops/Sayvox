@@ -19,9 +19,44 @@ function instruments() {
   return { httpDuration };
 }
 
+let sessionStart: Histogram | undefined;
+let releaseToInsert: Histogram | undefined;
+let sttCommit: Histogram | undefined;
+
+const LATENCY_BUCKETS = [25, 50, 100, 150, 250, 400, 600, 800, 1000, 1200, 1500, 2000, 3000, 5000];
+
+/** Server time of /v1/session/start (target < 150 ms, alert p95 > 250 ms). */
+export function sessionStartDuration(): Histogram {
+  sessionStart ??= metrics.getMeter("sayvox-api").createHistogram("session_start_ms", {
+    unit: "ms",
+    advice: { explicitBucketBoundaries: LATENCY_BUCKETS },
+  });
+  return sessionStart;
+}
+
+/** Client-reported release → inserted (the primary product metric, Constitution III). */
+export function releaseToInsertDuration(): Histogram {
+  releaseToInsert ??= metrics.getMeter("sayvox-api").createHistogram("release_to_insert_ms", {
+    unit: "ms",
+    advice: { explicitBucketBoundaries: LATENCY_BUCKETS },
+  });
+  return releaseToInsert;
+}
+
+export function sttCommitDuration(): Histogram {
+  sttCommit ??= metrics.getMeter("sayvox-api").createHistogram("stt_commit_ms", {
+    unit: "ms",
+    advice: { explicitBucketBoundaries: LATENCY_BUCKETS },
+  });
+  return sttCommit;
+}
+
 /** Test hook: drop cached instruments after swapping the global meter provider. */
 export function resetInstruments(): void {
   httpDuration = undefined;
+  sessionStart = undefined;
+  releaseToInsert = undefined;
+  sttCommit = undefined;
 }
 
 /**

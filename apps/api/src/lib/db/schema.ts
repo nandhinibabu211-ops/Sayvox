@@ -138,6 +138,10 @@ export const sessions = pgTable(
     audioSeconds: numeric("audio_seconds", { precision: 8, scale: 2 }),
     modelUsed: text("model_used"),
     fallbackUsed: boolean("fallback_used").notNull().default(false),
+    /** Keyterms were sent to Scribe (adds ~$0.08/h to STT cost). */
+    keytermsUsed: boolean("keyterms_used").notNull().default(false),
+    /** Session cap given to the client and to ElevenLabs for this session. */
+    maxSessionSeconds: integer("max_session_seconds").notNull().default(300),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     ttftMs: integer("ttft_ms"),
