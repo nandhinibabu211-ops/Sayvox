@@ -71,7 +71,11 @@ export function buildApp({
   registerHttpMetrics(app);
   if (auth) registerAuth(app, auth);
 
-  app.get("/healthz", { config: { public: true } }, async () => ({ status: "ok" }));
+  // /healthz for container probes; /health from outside, because Cloud Run's frontend
+  // reserves paths ending in "z" and answers /healthz with its own 404.
+  const health = async () => ({ status: "ok" });
+  app.get("/healthz", { config: { public: true } }, health);
+  app.get("/health", { config: { public: true } }, health);
   if (clientConfig) registerClientConfigRoutes(app, clientConfig);
   if (session) {
     if (!auth) throw new Error("session routes require auth");
