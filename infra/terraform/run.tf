@@ -237,7 +237,7 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler" {
 
 resource "google_cloud_scheduler_job" "job" {
   for_each = {
-    reconcile = "0 3 * * 1" # Mondays 03:00 UTC, the previous 7 full days
+    reconcile = "0 3 * * 1"  # Mondays 03:00 UTC, the previous 7 full days
     spend     = "30 0 * * *" # daily 00:30 UTC, yesterday vs the 7 days before
   }
   name      = "${local.name}-${each.key}"
