@@ -82,11 +82,17 @@ interface Active {
   threadContext?: string;
 }
 
+/** Server error text for quota errors ("Monthly limit reached"); undefined otherwise. */
+function quotaMessage(err: unknown): string | undefined {
+  return err instanceof ApiError && err.code === "QUOTA_EXCEEDED" ? err.message : undefined;
+}
+
 function errorCode(err: unknown): string {
   if (err instanceof SessionExpiredError) return "SESSION_EXPIRED";
   if (err instanceof ApiError) return err.code;
-  if (err instanceof ScribeError)
-    return err.providerType === "quota_exceeded" ? "QUOTA_EXCEEDED" : "scribe";
+  // ElevenLabs `quota_exceeded` is OUR provider account running out, not the user's plan:
+  // telling the user to upgrade would be wrong, so it's a generic service error.
+  if (err instanceof ScribeError) return "scribe";
   if (err instanceof TypeError) return "offline";
   return "unknown";
 }
@@ -195,7 +201,7 @@ export class DictationPipeline {
     a.scribe.catch((err: unknown) => {
       if (this.active === a && !a.ended) {
         a.ended = true;
-        this.fail(errorFor(errorCode(err)));
+        this.fail(errorFor(errorCode(err), quotaMessage(err)));
       }
     });
   }
@@ -214,7 +220,7 @@ export class DictationPipeline {
       for (const c of a.pending.splice(0)) scribe.sendChunk(c);
       result = await scribe.commit();
     } catch (err) {
-      this.fail(errorFor(errorCode(err)));
+      this.fail(errorFor(errorCode(err), quotaMessage(err)));
       const s = await a.session.catch(() => undefined);
       if (s) void this.end(a, s.sessionId, audioSeconds, "failed", 0, 0);
       return;

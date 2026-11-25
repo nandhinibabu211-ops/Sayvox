@@ -68,7 +68,9 @@ Each item: **Decision · Rationale · Alternatives considered**. Items marked **
 ## R10 — Billing (ADR-003)
 - **Decision (owner)**: Razorpay only (ADR-003). International cards need Razorpay international payments enabled.
 - **Rationale**: India-focused user base plus international customers.
-- **Open**: confirm with business before Phase 4.
+- **Verified 2026-11-25 (T088, razorpay.com/docs)**: Subscriptions API `POST /v1/subscriptions` (`plan_id`, `total_count` required; `expire_by`, `notes` up to 15 pairs) returns `short_url` for the hosted authorisation payment; `POST /v1/subscriptions/:id/cancel` with `cancel_at_cycle_end` (true = at period end; status becomes `cancelled` only then; callable once). HTTP Basic with key id + secret. Statuses: created, authenticated, active, pending, halted, cancelled, completed, expired (plus paused in webhooks).
+- **Webhooks**: `X-Razorpay-Signature` = hex HMAC-SHA256 of the raw body with the webhook secret; `x-razorpay-event-id` unique per event (dedupe on it); delivery may repeat and may arrive out of order; ports 80/443 only (fine for Cloud Run). Events: subscription.authenticated, activated, charged, completed, updated, pending, halted, cancelled, paused, resumed; entity at `payload.subscription.entity`.
+- **Not stated in the docs read**: whether retries reuse the event id (assumed yes, per 'unique per event'), and the test-key prefix. Razorpay Subscriptions are listed for India, Malaysia, Singapore and the US.
 
 ## R11 — Metering of audio
 - **Decision**: Client reports audio seconds at session end; backend clamps to `maxSessionSeconds` and the session wall-clock; weekly reconciliation vs ElevenLabs usage.

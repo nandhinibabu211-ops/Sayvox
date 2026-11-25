@@ -26,7 +26,11 @@ export type OverlayState =
 export const INSERTED_HIDE_MS = 800;
 export const ERROR_HIDE_MS = 3_000;
 
-export function errorFor(code: string): Extract<OverlayState, { kind: "error" }> {
+/**
+ * `message` is the server's own text where it's more specific (e.g. "Monthly limit
+ * reached" vs "Daily limit reached"); it's an error envelope message, never user speech.
+ */
+export function errorFor(code: string, message?: string): Extract<OverlayState, { kind: "error" }> {
   switch (code) {
     case "permissionDenied":
       return {
@@ -39,7 +43,11 @@ export function errorFor(code: string): Extract<OverlayState, { kind: "error" }>
     case "deviceLost":
       return { kind: "error", message: "Microphone disconnected." };
     case "QUOTA_EXCEEDED":
-      return { kind: "error", message: "Daily limit reached.", action: "upgrade" };
+      return {
+        kind: "error",
+        message: message ? `${message.replace(/\.$/, "")}.` : "Daily limit reached.",
+        action: "upgrade",
+      };
     case "SESSION_EXPIRED":
     case "UNAUTHENTICATED":
       return { kind: "error", message: "Sign in to Sayvox to dictate.", action: "signIn" };

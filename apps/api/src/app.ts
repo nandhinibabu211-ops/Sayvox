@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import { registerHttpMetrics } from "./lib/otel/metrics";
 import { registerAccountRoutes, type AccountDeps } from "./modules/account/routes";
+import { registerBillingRoutes, type BillingDeps } from "./modules/billing/routes";
+import { registerUsageRoutes, type UsageDeps } from "./modules/usage/routes";
 import { registerClientConfigRoutes, type ClientConfigDeps } from "./modules/config/routes";
 import { registerAuth, type AuthOptions } from "./modules/auth/plugin";
 import { registerRewriteRoutes, type RewriteDeps } from "./modules/rewrite/routes";
@@ -26,6 +28,10 @@ export interface BuildAppOptions {
   account?: AccountDeps;
   /** POST /v1/telemetry; requires `auth`. */
   telemetry?: TelemetryDeps;
+  /** GET /v1/usage; requires `auth`. */
+  usage?: UsageDeps;
+  /** /v1/billing/* (checkout and cancel need `auth`; the webhook is public, signed). */
+  billing?: BillingDeps;
 }
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
@@ -39,6 +45,8 @@ export function buildApp({
   account,
   telemetry,
   clientConfig,
+  usage,
+  billing,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
@@ -80,6 +88,14 @@ export function buildApp({
   if (telemetry) {
     if (!auth) throw new Error("telemetry routes require auth");
     registerTelemetryRoutes(app, telemetry);
+  }
+  if (usage) {
+    if (!auth) throw new Error("usage routes require auth");
+    registerUsageRoutes(app, usage);
+  }
+  if (billing) {
+    if (!auth) throw new Error("billing routes require auth");
+    registerBillingRoutes(app, billing);
   }
 
   return app;

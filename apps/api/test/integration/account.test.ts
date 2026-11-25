@@ -168,7 +168,7 @@ describe("DELETE /v1/account (T075, Story 5.7 AC 1)", () => {
     const id = await seedUser("acct-4");
     await pg.handle.db
       .insert(subscriptions)
-      .values({ userId: id, providerSubId: "sub_live_1", status: "active" });
+      .values({ userId: id, providerSubId: "sub_live_1", status: "active", planId: "pro" });
     const { a, deleted } = app();
     const res = await a.inject({ method: "DELETE", url: "/v1/account", headers: auth("acct-4") });
     expect(res.statusCode).toBe(409);

@@ -15,6 +15,9 @@ import { closePool, pooledFetch } from "./lib/openrouter/pool";
 import { createOpenRouterClient } from "./lib/openrouter/stream";
 import { createDbRewriteStore } from "./modules/rewrite/store";
 import { validateSlugs, type ModelPrice } from "./modules/config/validateSlugs";
+import { createRazorpayClient } from "./lib/razorpay/client";
+import { PlanMap } from "./modules/billing/plans";
+import { createSubscriptionCanceller } from "./modules/billing/routes";
 
 const env = loadEnv();
 const logger = createLogger({ level: env.LOG_LEVEL });
@@ -50,6 +53,22 @@ await validateSlugs(presetSlugs, pooledFetch)
     logger.warn({ errName: (err as Error).name }, "model list check failed"),
   );
 
+// Billing (ADR-003): optional until Razorpay is set up; the app then runs on free plans only.
+const razorpay =
+  env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET
+    ? createRazorpayClient({ keyId: env.RAZORPAY_KEY_ID, keySecret: env.RAZORPAY_KEY_SECRET })
+    : undefined;
+if (env.NODE_ENV === "production" && env.RAZORPAY_KEY_ID?.startsWith("rzp_test_")) {
+  throw new Error("Razorpay test keys must not be used in production");
+}
+if (razorpay && !env.RAZORPAY_WEBHOOK_SECRET) {
+  logger.warn("RAZORPAY_WEBHOOK_SECRET not set: subscriptions will never activate");
+}
+const planMap = new PlanMap(env.RAZORPAY_PLAN_IDS);
+const billingAvailable = Boolean(
+  razorpay && env.RAZORPAY_WEBHOOK_SECRET && planMap.purchasable().length,
+);
+
 const app = buildApp({
   logger,
   auth: {
@@ -81,6 +100,16 @@ const app = buildApp({
       projectId: env.GCP_PROJECT_ID,
       emulatorHost: isDeployed ? undefined : env.FIREBASE_AUTH_EMULATOR_HOST,
     }),
+    ...(razorpay ? { cancelSubscriptions: createSubscriptionCanceller(razorpay) } : {}),
+  },
+  usage: { db: database.db, redis, planMap, billingAvailable },
+  billing: {
+    db: database.db,
+    redis,
+    razorpay,
+    planMap,
+    webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+    totalCount: env.RAZORPAY_TOTAL_COUNT,
   },
   telemetry: { logger },
   clientConfig: { config },

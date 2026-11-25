@@ -431,4 +431,31 @@ describe("DictationPipeline (US1)", () => {
       expect(takes).toBe(1);
     });
   });
+
+  describe("usage limits (US5, T086)", () => {
+    it("a monthly cap says monthly and offers Upgrade", async () => {
+      const h = harness({
+        takeSession: async () => {
+          throw new ApiError(402, "QUOTA_EXCEEDED", "Monthly limit reached");
+        },
+      });
+      await h.p.onEvent({ kind: "press", t: 0 });
+      await tick();
+      expect(h.states).toContainEqual({
+        kind: "error",
+        message: "Monthly limit reached.",
+        action: "upgrade",
+      });
+    });
+
+    it("ElevenLabs running out of quota is OUR problem: no Upgrade button for the user", async () => {
+      const h = harness({ transcript: new ScribeError("fatal", "quota_exceeded") });
+      await h.p.onEvent({ kind: "press", t: 0 });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await tick();
+      const err = h.states.find((s) => s.kind === "error");
+      expect(err).toBeDefined();
+      expect(err).not.toHaveProperty("action", "upgrade");
+    });
+  });
 });

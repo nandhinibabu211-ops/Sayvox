@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { emitTo } from "@tauri-apps/api/event";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
@@ -128,6 +129,14 @@ function render(s: OverlayState): void {
         action.textContent = "Update";
         action.hidden = false;
         onAction = () => void showMainWindow();
+      } else if (s.action === "upgrade") {
+        // T086: daily/monthly limit reached → Settings → Usage & Plan.
+        action.textContent = "Upgrade";
+        action.hidden = false;
+        onAction = () => {
+          void showMainWindow().then(() => emitTo("main", "settings://open", { page: "usage" }));
+          render({ kind: "hidden" });
+        };
       } else if (s.action === "signIn") {
         action.textContent = "Sign in";
         action.hidden = false;

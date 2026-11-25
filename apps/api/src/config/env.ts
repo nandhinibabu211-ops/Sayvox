@@ -73,6 +73,29 @@ export const EnvSchema = z.object({
     })
     .pipe(z.record(z.string(), z.enum(["none", "minimal", "low", "medium", "high"]))),
 
+  // Billing (ADR-003). All optional: without keys, checkout returns 503 and the app works
+  // on the free plan. Test-mode keys outside production.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  /** Sayvox plan id → Razorpay plan id, e.g. {"pro":"plan_XXXX"} (created in the dashboard). */
+  RAZORPAY_PLAN_IDS: z
+    .string()
+    .default("{}")
+    .transform((s, ctx) => {
+      try {
+        return JSON.parse(s) as unknown;
+      } catch {
+        ctx.addIssue({ code: "custom", message: "not JSON" });
+        return z.NEVER;
+      }
+    })
+    .pipe(
+      z.record(z.string().regex(/^[a-z0-9_-]{1,32}$/), z.string().regex(/^plan_[A-Za-z0-9]+$/)),
+    ),
+  /** Billing cycles per subscription (Razorpay needs a count); 120 monthly = 10 years. */
+  RAZORPAY_TOTAL_COUNT: z.coerce.number().int().min(1).max(1200).default(120),
+
   ELEVENLABS_API_KEY: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
 });

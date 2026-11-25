@@ -134,13 +134,13 @@ Tests are written first and must fail before implementation (Constitution V).
 - [x] T084 [US7] Installer + update manifest hosting on Cloud Storage + Cloud CDN; install guide for the SmartScreen prompt — `infra/downloads/`, `apps/web/install.html`, runbook `docs/runbooks/release.md`
 
 ## Phase 9: User Story 5 — Usage, limits & upgrade (P3)
-- [ ] T085 [P] [US5] `GET /v1/usage` + Usage & Plan screen — `apps/api/src/modules/usage/`, `apps/desktop/src/settings/Usage.tsx`
-- [ ] T086 [US5] Quota-hit overlay state with Upgrade CTA — `apps/desktop/src/overlay/`
-- [ ] T087 [US5] Razorpay Plans ↔ Sayvox plans mapping (ADR-003) — `apps/api/src/modules/billing/plans.ts`
-- [ ] T088 [US5] Razorpay subscription create/cancel client — `apps/api/src/modules/billing/razorpay.ts`
-- [ ] T089 [US5] `POST /v1/billing/checkout` — `apps/api/src/modules/billing/checkout.ts`
-- [ ] T090 [US5] `POST /v1/billing/webhook` signature verify + idempotency + plan update — `apps/api/src/modules/billing/webhook.ts`
-- [ ] T091 [US5] Apply free-tier caps from ADR-004 (10 min/day, 120 min/month, Balanced + Cheapest, 25 terms) to seed — `apps/api/drizzle/seed.ts`
+- [x] T085 [P] [US5] `GET /v1/usage` + Usage & Plan screen — `apps/api/src/modules/usage/`, `apps/desktop/src/settings/Usage.ts`
+- [x] T086 [US5] Quota-hit overlay state with Upgrade CTA — `apps/desktop/src/overlay/`
+- [x] T087 [US5] Razorpay Plans ↔ Sayvox plans mapping (ADR-003) — `apps/api/src/modules/billing/plans.ts`
+- [x] T088 [US5] Razorpay subscription create/cancel client — `apps/api/src/lib/razorpay/client.ts`
+- [x] T089 [US5] `POST /v1/billing/checkout` (+ `POST /v1/billing/cancel`) — `apps/api/src/modules/billing/routes.ts`
+- [x] T090 [US5] `POST /v1/billing/webhook` signature verify + idempotency + plan update — `apps/api/src/modules/billing/routes.ts`
+- [x] T091 [US5] Apply free-tier caps from ADR-004 (10 min/day, 120 min/month, Balanced + Cheapest, 25 terms) to seed — `apps/api/src/lib/db/seed.ts` *(already applied in Phase 2; covered by `test/integration/db.test.ts`)*
 
 ## Phase 10: Polish & cross-cutting (launch)
 - [ ] T092 [P] Cloud Monitoring dashboards + alerts for every signal in architecture §16 — `infra/observability/`

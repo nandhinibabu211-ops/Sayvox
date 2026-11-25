@@ -35,9 +35,15 @@ Postgres 16. All timestamps `timestamptz` UTC. **No entity stores transcript, pa
 | user_id | uuid | FK → users.id ON DELETE CASCADE |
 | provider | text, default `'razorpay'` | only Razorpay today (ADR-003) |
 | provider_sub_id | text | unique |
-| status | enum (`active`, `past_due`, `cancelled`, `incomplete`) | |
-| current_period_end | timestamptz | |
+| status | enum (`active`, `past_due`, `cancelled`, `incomplete`, `halted`) | from Razorpay: created/authenticated -> incomplete, active -> active, pending -> past_due (grace), halted/paused -> halted, cancelled/completed/expired -> cancelled |
+| current_period_end | timestamptz | Razorpay `current_end` |
+| plan_id | text | FK -> plans.id; the Sayvox plan this subscription grants |
+| cancel_at_period_end | bool | default false; user cancelled, plan kept until period end |
+| last_event_at | timestamptz | newest webhook `created_at` applied (out-of-order events ignored) |
+| created_at | timestamptz | default now() |
 | PK | (user_id, provider_sub_id) | |
+
+`users.plan_id` = plan of the newest subscription in `active`/`past_due`, else `free` (recomputed on every webhook).
 
 ### settings
 | Column | Type | Constraints |
