@@ -31,7 +31,7 @@ body {
   margin: 0 auto;
   padding: 10px 14px;
   display: grid;
-  grid-template-columns: auto auto auto 1fr auto;
+  grid-template-columns: auto auto auto 1fr auto auto;
   align-items: center;
   gap: 8px;
   border-radius: 14px;
@@ -128,4 +128,20 @@ body {
   direction: ltr;
   overflow-y: auto;
   max-height: calc(100vh - 24px);
+}
+
+[data-state="review"] .dot {
+  background: var(--ok);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Review text wraps so the whole rewrite can be read before inserting. */
+[data-state="review"] #text {
+  direction: ltr;
+  white-space: normal;
 }

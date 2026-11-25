@@ -2,6 +2,7 @@ import type { SessionEndRequest, SessionStartResponse } from "@sayvox/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
+import type { ModePrefs } from "./modeResolver";
 import { DictationPipeline, type InsertOutcome, type ScribeLike } from "./pipeline";
 import { RewriteFailed, type RewriteDone } from "./rewriteClient";
 import { ScribeError } from "./scribeClient";
@@ -21,6 +22,8 @@ function harness(
     insert?: InsertOutcome;
     takeSession?: () => Promise<SessionStartResponse>;
     rewrite?: (req: unknown, onToken: (soFar: string) => void) => Promise<RewriteDone>;
+    insertMode?: "auto" | "review";
+    modePrefs?: ModePrefs;
   } = {},
 ) {
   const states: OverlayState[] = [];
@@ -44,6 +47,7 @@ function harness(
   };
   const insert = vi.fn(async () => opts.insert ?? ("inserted" as InsertOutcome));
   let clock = 0;
+  const reviewKeys: boolean[] = [];
   const p = new DictationPipeline({
     takeSession: opts.takeSession ?? (async () => SESSION),
     newScribe: () => scribe,
@@ -56,8 +60,20 @@ function harness(
     clientVersion: "0.1.0",
     ...(opts.rewrite ? { rewrite: opts.rewrite } : {}),
     schedule: (fn) => fn(),
+    ...(opts.insertMode ? { insertMode: () => opts.insertMode! } : {}),
+    ...(opts.modePrefs ? { modePrefs: () => opts.modePrefs! } : {}),
+    reviewKeys: (on) => reviewKeys.push(on),
   });
-  return { p, states, ends, sent, scribe, insert, setClock: (t: number) => (clock = t) };
+  return {
+    p,
+    states,
+    ends,
+    sent,
+    scribe,
+    insert,
+    reviewKeys,
+    setClock: (t: number) => (clock = t),
+  };
 }
 
 const chunk = () => new ArrayBuffer(5_120);
@@ -299,6 +315,93 @@ describe("DictationPipeline (US1)", () => {
       await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
       await h.p.onEvent({ kind: "context", threadContext: "late selection" });
       expect(seen[0]).not.toHaveProperty("threadContext");
+    });
+  });
+
+  describe("personalisation (US4)", () => {
+    const done = (text: string): RewriteDone => ({
+      text,
+      model: "m",
+      ttftMs: 1,
+      totalMs: 2,
+      fallbackUsed: false,
+    });
+    const until = async (pred: () => boolean) => {
+      for (let i = 0; i < 50 && !pred(); i++) await tick();
+    };
+
+    it("review mode waits for Enter, then inserts; keys are captured only meanwhile", async () => {
+      const h = harness({ insertMode: "review", rewrite: async () => done("Goal: meet Friday.") });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      h.setClock(500);
+      const released = h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await until(() => h.states.at(-1)?.kind === "review");
+      expect(h.states.at(-1)).toEqual({
+        kind: "review",
+        text: "Goal: meet Friday.",
+        mode: "prompt",
+      });
+      expect(h.insert).not.toHaveBeenCalled();
+      expect(h.reviewKeys).toEqual([true]);
+      h.setClock(10_500); // ten seconds reading it
+      await h.p.onEvent({ kind: "review", accept: true });
+      await released;
+      expect(h.reviewKeys).toEqual([true, false]);
+      expect(h.insert).toHaveBeenCalledWith("Goal: meet Friday.");
+      await tick();
+      // Review time isn't counted as latency.
+      expect(h.ends[0]).toMatchObject({
+        insertResult: "inserted",
+        timings: { releaseToInsertMs: 100 },
+      });
+    });
+
+    it("Esc discards: nothing pasted, session reported as discarded", async () => {
+      const h = harness({ insertMode: "review", rewrite: async () => done("Hi Priya,") });
+      await h.p.onEvent({ kind: "press", t: 0, app: "web:gmail" });
+      const released = h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await until(() => h.states.at(-1)?.kind === "review");
+      await h.p.onEvent({ kind: "review", accept: false });
+      await released;
+      await tick();
+      expect(h.insert).not.toHaveBeenCalled();
+      expect(h.states.at(-1)).toEqual({ kind: "hidden" });
+      expect(h.ends[0]).toMatchObject({ insertResult: "discarded", mode: "email" });
+      expect(h.reviewKeys).toEqual([true, false]);
+    });
+
+    it("a new press discards the review without hiding the new dictation", async () => {
+      const h = harness({ insertMode: "review", rewrite: async () => done("Goal: x") });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      const released = h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      await until(() => h.states.at(-1)?.kind === "review");
+      await h.p.onEvent({ kind: "press", t: 2_000, app: "notepad.exe" });
+      await released;
+      expect(h.insert).not.toHaveBeenCalled();
+      expect(h.states.at(-1)).toMatchObject({ kind: "listening" });
+      expect(h.reviewKeys).toEqual([true, false]);
+    });
+
+    it("dictation mode inserts at once even with review on", async () => {
+      const h = harness({ insertMode: "review", rewrite: async () => done("x") });
+      await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(h.insert).toHaveBeenCalledWith("So let's meet on Friday.");
+      expect(h.reviewKeys).toEqual([]);
+    });
+
+    it("uses the user's default mode and per-app overrides from settings", async () => {
+      const rewrite = vi.fn(async () => done("Hi team,"));
+      const h = harness({
+        rewrite,
+        modePrefs: { defaultMode: "prompt", overrides: { "cursor.exe": "dictation" } },
+      });
+      await h.p.onEvent({ kind: "press", t: 0, app: "cursor.exe" });
+      expect(h.states.at(-1)).toMatchObject({ mode: "dictation" });
+      await h.p.onEvent({ kind: "release", t: 400, audioSeconds: 1 });
+      expect(rewrite).not.toHaveBeenCalled();
+      await h.p.onEvent({ kind: "press", t: 1_000, app: "notepad.exe" });
+      expect(h.states.at(-1)).toMatchObject({ mode: "prompt" });
     });
   });
 });

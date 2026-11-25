@@ -70,6 +70,7 @@ const app = buildApp({
     complete: createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch }),
     prices: () => prices,
   },
+  settings: { db: database.db, redis },
 });
 
 const stopSweeper = startSweeper(database.db, (err) =>

@@ -110,7 +110,7 @@ paths:
           description: Settings
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Settings" }
+              schema: { $ref: "#/components/schemas/SettingsResponse" }
     put:
       summary: Update settings
       requestBody:
@@ -123,7 +123,7 @@ paths:
           description: Updated
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Settings" }
+              schema: { $ref: "#/components/schemas/SettingsResponse" }
         "400": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
 
@@ -170,6 +170,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/Error" }
 
   /v1/usage:
     get:
@@ -223,6 +224,7 @@ paths:
       summary: Delete account and all user data
       responses:
         "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/Error" }
 
   /v1/telemetry:
     post:
@@ -334,8 +336,20 @@ components:
           type: object
           additionalProperties: { $ref: "#/components/schemas/Mode" }
         insertMode: { type: string, enum: [auto, review] }
-        languageHint: { type: string, nullable: true }
-        hotkey: { type: string }
+        languageHint: { type: string, nullable: true, enum: [auto, en, en-IN, hinglish, null], description: "null = auto-detect" }
+        hotkey: { type: string, enum: [Ctrl+Shift, Ctrl+Alt, Alt+Shift, Ctrl+Win, Shift+Win] }
+    SettingsResponse:
+      allOf:
+        - { $ref: "#/components/schemas/Settings" }
+        - type: object
+          properties:
+            plan:
+              type: object
+              description: What the user's plan allows (presets outside allowedPresets are shown locked).
+              properties:
+                id: { type: string }
+                allowedPresets: { type: array, items: { $ref: "#/components/schemas/Preset" } }
+                dictionaryLimit: { type: integer }
     DictionaryTerm:
       type: object
       properties:

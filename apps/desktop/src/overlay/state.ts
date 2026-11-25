@@ -10,6 +10,8 @@ export type OverlayState =
   | { kind: "transcribing"; partial: string; mode?: Mode }
   /** Streaming an AI rewrite (prompt / email mode, T054). */
   | { kind: "rewriting"; text: string; mode: Mode }
+  /** Rewrite done, waiting for Enter (insert) / Esc (discard) (T071). */
+  | { kind: "review"; text: string; mode: Mode; notice?: string }
   | { kind: "inserting"; text: string }
   /** `notice` set when the raw transcript was pasted because the rewrite failed (T055). */
   | { kind: "inserted"; text: string; notice?: string }

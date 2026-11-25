@@ -1,14 +1,18 @@
-//! Hold-to-talk chord state machine (Story 1.3). Pure logic: no OS calls, injected time,
-//! so every edge case is unit-tested without Windows.
+//! Hold-to-talk chord state machine (Story 1.3, rebindable in Story 2.6). Pure logic: no OS
+//! calls, injected time, so every edge case is unit-tested without Windows.
 //!
-//! The chord is Ctrl+Shift held together with no other key. `Press` fires the moment both
-//! are down (so capture starts at once and the overlay can show within 50 ms). Releasing
-//! either modifier ends the hold: `Release` if it lasted at least `min_hold_ms`, else
-//! `Cancel` (an accidental tap). Pressing any other key while the chord is down means the
-//! user is typing a shortcut such as Ctrl+Shift+T: we emit `Cancel` and ignore the chord
-//! until every key is released. Key repeat is ignored.
+//! The chord is a [`Binding`]: exactly its modifiers held, nothing else. `Press` fires the
+//! moment the chord is complete (capture starts at once; overlay within 50 ms). Releasing
+//! any of its modifiers ends the hold: `Release` if it lasted at least `min_hold_ms`, else
+//! `Cancel` (accidental tap). Any other key — a letter or an extra modifier — while the
+//! chord is held means the user is typing a shortcut (Ctrl+Shift+T, Ctrl+Shift+Alt…): we
+//! emit `Cancel` and ignore the chord until every key is released. Key repeat is ignored.
 
-/// Virtual-key codes the low-level hook reports (left/right specific).
+use super::binding::{modifier_bit, Binding};
+use std::collections::HashSet;
+
+/// Virtual-key codes the low-level hook reports (left/right specific), for tests.
+#[cfg(test)]
 pub mod vk {
     pub const SHIFT: u32 = 0x10;
     pub const CONTROL: u32 = 0x11;
@@ -16,6 +20,8 @@ pub mod vk {
     pub const RSHIFT: u32 = 0xA1;
     pub const LCONTROL: u32 = 0xA2;
     pub const RCONTROL: u32 = 0xA3;
+    pub const LMENU: u32 = 0xA4;
+    pub const LWIN: u32 = 0x5B;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,8 +34,15 @@ pub enum KeyEvent {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HotkeyEvent {
     Press,
-    Release { held_ms: u64 },
+    Release {
+        held_ms: u64,
+    },
     Cancel,
+    /// Enter (accept) / Esc (discard) while a rewrite waits for review. Emitted by the
+    /// hook's [`super::review::ReviewFilter`], never by the chord machine.
+    Review {
+        accept: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,89 +59,81 @@ enum Phase {
 #[derive(Debug)]
 pub struct ChordMachine {
     min_hold_ms: u64,
-    ctrl: [bool; 2],
-    shift: [bool; 2],
-    /// Non-modifier keys currently down (a set, so auto-repeat can't inflate it).
-    others_down: std::collections::HashSet<u32>,
+    binding: Binding,
+    /// Physical keys currently down (vk codes), so left/right and repeats are exact.
+    down: HashSet<u32>,
     phase: Phase,
 }
 
 impl ChordMachine {
     pub const DEFAULT_MIN_HOLD_MS: u64 = 300;
 
+    #[cfg(test)]
     pub fn new(min_hold_ms: u64) -> Self {
+        Self::with_binding(min_hold_ms, Binding::DEFAULT)
+    }
+
+    pub fn with_binding(min_hold_ms: u64, binding: Binding) -> Self {
         Self {
             min_hold_ms,
-            ctrl: [false; 2],
-            shift: [false; 2],
-            others_down: std::collections::HashSet::new(),
+            binding,
+            down: HashSet::new(),
             phase: Phase::Idle,
         }
     }
 
-    fn ctrl_down(&self) -> bool {
-        self.ctrl[0] || self.ctrl[1]
-    }
-
-    fn shift_down(&self) -> bool {
-        self.shift[0] || self.shift[1]
-    }
-
-    /// Returns true when the key's state actually changed (false for auto-repeat).
-    fn track(&mut self, key: KeyEvent) -> bool {
-        let (code, down) = match key {
-            KeyEvent::Down(c) => (c, true),
-            KeyEvent::Up(c) => (c, false),
-        };
-        let slot = match code {
-            vk::LCONTROL | vk::CONTROL => Some((&mut self.ctrl, 0)),
-            vk::RCONTROL => Some((&mut self.ctrl, 1)),
-            vk::LSHIFT | vk::SHIFT => Some((&mut self.shift, 0)),
-            vk::RSHIFT => Some((&mut self.shift, 1)),
-            _ => None,
-        };
-        match slot {
-            Some((arr, i)) => {
-                let changed = arr[i] != down;
-                arr[i] = down;
-                changed
-            }
-            None => {
-                if down {
-                    self.others_down.insert(code)
-                } else {
-                    self.others_down.remove(&code)
-                }
-            }
+    /// Change the chord at runtime (Settings → General). Ends any hold in progress.
+    pub fn set_binding(&mut self, binding: Binding) {
+        self.binding = binding;
+        if !matches!(self.phase, Phase::Idle) {
+            self.phase = Phase::Tainted;
         }
+    }
+
+    fn held_mods(&self) -> u8 {
+        self.down.iter().fold(0, |m, &vk| m | modifier_bit(vk))
+    }
+
+    fn others_down(&self) -> bool {
+        self.down.iter().any(|&vk| modifier_bit(vk) == 0)
+    }
+
+    fn chord_complete(&self) -> bool {
+        self.held_mods() == self.binding.mods && !self.others_down()
     }
 
     /// Feed one key event at `now_ms`; returns the hotkey event it caused, if any.
     pub fn on_key(&mut self, key: KeyEvent, now_ms: u64) -> Option<HotkeyEvent> {
-        let is_modifier = matches!(
-            key,
-            KeyEvent::Down(c) | KeyEvent::Up(c)
-                if matches!(c, vk::SHIFT | vk::CONTROL | vk::LSHIFT | vk::RSHIFT | vk::LCONTROL | vk::RCONTROL)
-        );
-        let changed = self.track(key);
-        if is_modifier && !changed {
-            return None; // auto-repeat of a held modifier
+        let (code, is_down) = match key {
+            KeyEvent::Down(c) => (c, true),
+            KeyEvent::Up(c) => (c, false),
+        };
+        let changed = if is_down {
+            self.down.insert(code)
+        } else {
+            self.down.remove(&code)
+        };
+        if !changed {
+            return None; // auto-repeat, or an up we never saw go down
         }
 
         match self.phase {
             Phase::Idle => {
-                if self.ctrl_down() && self.shift_down() && self.others_down.is_empty() {
+                if is_down && self.chord_complete() {
                     self.phase = Phase::Holding { since_ms: now_ms };
                     return Some(HotkeyEvent::Press);
                 }
                 None
             }
             Phase::Holding { since_ms } => {
-                if matches!(key, KeyEvent::Down(_)) && !is_modifier {
+                let bit = modifier_bit(code);
+                if is_down {
+                    // A letter, or a modifier that isn't part of the chord: it's a shortcut.
                     self.phase = Phase::Tainted;
                     return Some(HotkeyEvent::Cancel);
                 }
-                if !(self.ctrl_down() && self.shift_down()) {
+                if bit & self.binding.mods != 0 && self.held_mods() & bit == 0 {
+                    // One of the chord's modifiers is fully up (both left and right).
                     self.phase = self.idle_or_tainted();
                     let held_ms = now_ms.saturating_sub(since_ms);
                     return Some(if held_ms < self.min_hold_ms {
@@ -146,12 +151,12 @@ impl ChordMachine {
         }
     }
 
-    /// Stay tainted until every tracked key is up, so a lingering modifier can't re-arm.
+    /// Stay tainted until every key is up, so a lingering modifier can't re-arm.
     fn idle_or_tainted(&self) -> Phase {
-        if self.ctrl_down() || self.shift_down() || !self.others_down.is_empty() {
-            Phase::Tainted
-        } else {
+        if self.down.is_empty() {
             Phase::Idle
+        } else {
+            Phase::Tainted
         }
     }
 
@@ -174,6 +179,7 @@ impl ChordMachine {
 
 #[cfg(test)]
 mod tests {
+    use super::super::binding::Binding;
     use super::vk::*;
     use super::KeyEvent::{Down, Up};
     use super::*;
@@ -246,11 +252,9 @@ mod tests {
         assert_eq!(s.on_key(Down(LSHIFT), 0), Some(HotkeyEvent::Press));
         assert_eq!(s.on_key(Down(0x54), 50), Some(HotkeyEvent::Cancel)); // 'T'
         assert_eq!(s.on_key(Up(0x54), 80), None);
-        // Still holding Ctrl+Shift, but tainted: no new Press.
         assert_eq!(s.on_key(Down(LSHIFT), 120), None);
         assert_eq!(s.on_key(Up(LSHIFT), 900), None);
         assert_eq!(s.on_key(Up(LCONTROL), 910), None);
-        // Fully released: the chord works again.
         s.on_key(Down(LCONTROL), 1_000);
         assert_eq!(s.on_key(Down(LSHIFT), 1_001), Some(HotkeyEvent::Press));
     }
@@ -267,7 +271,7 @@ mod tests {
     fn auto_repeat_of_another_key_does_not_block_the_chord_later() {
         let mut s = m();
         for t in 0..10 {
-            s.on_key(Down(0x41), t); // 'A' auto-repeat
+            s.on_key(Down(0x41), t);
         }
         s.on_key(Up(0x41), 20);
         s.on_key(Down(LCONTROL), 30);
@@ -280,7 +284,6 @@ mod tests {
         s.on_key(Down(LCONTROL), 0);
         s.on_key(Down(RCONTROL), 0);
         assert_eq!(s.on_key(Down(LSHIFT), 0), Some(HotkeyEvent::Press));
-        // Releasing one Ctrl while the other is still down keeps the hold.
         assert_eq!(s.on_key(Up(LCONTROL), 500), None);
         assert!(matches!(
             s.on_key(Up(RCONTROL), 600),
@@ -302,5 +305,65 @@ mod tests {
         assert_eq!(s.on_key(Up(LCONTROL), 300_200), None);
         s.on_key(Down(LCONTROL), 400_000);
         assert_eq!(s.on_key(Down(LSHIFT), 400_000), Some(HotkeyEvent::Press));
+    }
+
+    // ── Story 2.6 / T072: rebindable chord ─────────────────────────────────
+
+    #[test]
+    fn a_third_modifier_is_a_shortcut_not_a_dictation() {
+        let mut s = m();
+        s.on_key(Down(LCONTROL), 0);
+        assert_eq!(s.on_key(Down(LSHIFT), 0), Some(HotkeyEvent::Press));
+        assert_eq!(s.on_key(Down(LMENU), 40), Some(HotkeyEvent::Cancel));
+        // Ctrl+Shift+Alt pressed together from the start never presses at all.
+        let mut s = m();
+        s.on_key(Down(LMENU), 0);
+        s.on_key(Down(LCONTROL), 0);
+        assert_eq!(s.on_key(Down(LSHIFT), 0), None);
+    }
+
+    #[test]
+    fn ctrl_alt_binding() {
+        let mut s = ChordMachine::with_binding(T, Binding::parse("Ctrl+Alt").unwrap());
+        s.on_key(Down(LCONTROL), 0);
+        assert_eq!(
+            s.on_key(Down(LSHIFT), 0),
+            None,
+            "Ctrl+Shift no longer triggers"
+        );
+        s.on_key(Up(LSHIFT), 10);
+        s.on_key(Up(LCONTROL), 10);
+        s.on_key(Down(LCONTROL), 100);
+        assert_eq!(s.on_key(Down(LMENU), 110), Some(HotkeyEvent::Press));
+        assert!(matches!(
+            s.on_key(Up(LMENU), 900),
+            Some(HotkeyEvent::Release { .. })
+        ));
+    }
+
+    #[test]
+    fn ctrl_win_binding() {
+        let mut s = ChordMachine::with_binding(T, Binding::parse("Ctrl+Win").unwrap());
+        s.on_key(Down(LWIN), 0);
+        assert_eq!(s.on_key(Down(LCONTROL), 5), Some(HotkeyEvent::Press));
+    }
+
+    #[test]
+    fn changing_the_binding_mid_hold_ends_it_safely() {
+        let mut s = m();
+        s.on_key(Down(LCONTROL), 0);
+        assert_eq!(s.on_key(Down(LSHIFT), 0), Some(HotkeyEvent::Press));
+        s.set_binding(Binding::parse("Ctrl+Alt").unwrap());
+        assert_eq!(s.on_key(Up(LSHIFT), 900), None);
+        assert_eq!(s.on_key(Up(LCONTROL), 910), None);
+        s.on_key(Down(LCONTROL), 1_000);
+        assert_eq!(s.on_key(Down(LMENU), 1_001), Some(HotkeyEvent::Press));
+    }
+
+    #[test]
+    fn legacy_generic_vk_codes_still_work() {
+        let mut s = m();
+        s.on_key(Down(CONTROL), 0);
+        assert_eq!(s.on_key(Down(SHIFT), 0), Some(HotkeyEvent::Press));
     }
 }

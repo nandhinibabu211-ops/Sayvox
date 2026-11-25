@@ -1,6 +1,6 @@
 //! Sayvox desktop core (Windows only, ADR-010).
 //!
-//! - `hotkey`: Ctrl+Shift hold-to-talk (`WH_KEYBOARD_LL`), `audio`: cpal → 16 kHz PCM16,
+//! - `hotkey`: hold-to-talk chord (default Ctrl+Shift) (`WH_KEYBOARD_LL`), `audio`: cpal → 16 kHz PCM16,
 //!   `insert`: clipboard paste + restore, `overlay`: non-activating notch window,
 //!   `dictation`: wires them together and talks to the web side.
 //! - `credentials` + `auth*`: Windows Credential Manager and the loopback sign-in callback.
@@ -114,9 +114,13 @@ pub fn run() {
             dictation::insert_text,
             dictation::copy_text,
             dictation::timing_append,
+            dictation::set_hotkey,
+            dictation::hotkey_suspend,
+            dictation::review_keys,
             overlay::overlay_hide,
             overlay::overlay_resize,
             selection::set_reply_context,
+            active_app::list_running_apps,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Sayvox");

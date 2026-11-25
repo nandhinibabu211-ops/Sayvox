@@ -1,13 +1,16 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import type { SessionStartResponse } from "@sayvox/shared";
+import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
+import { DEFAULT_PREFS } from "../services/modeResolver";
 import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
 import { CLIENT_VERSION, createApiClient } from "../services/runtime";
 import { streamRewrite } from "../services/rewriteClient";
 import { ScribeSession } from "../services/scribeClient";
 import { credentialSessionStore } from "../services/session";
+import { parseCached, SETTINGS_CACHE_KEY, SettingsStore } from "../services/settingsStore";
 import { TokenCache } from "../services/tokenCache";
+import { REVIEW_HINT } from "./review";
 import type { OverlayState } from "./state";
 
 /**
@@ -26,6 +29,7 @@ const label = $<HTMLSpanElement>("#label");
 const text = $<HTMLParagraphElement>("#text");
 const action = $<HTMLButtonElement>("#action");
 const badge = $<HTMLButtonElement>("#mode");
+const hint = $<HTMLSpanElement>("#hint");
 const MODE_LABELS = { dictation: "Dictation", prompt: "Prompt", email: "Email" } as const;
 let onAction: (() => void) | undefined;
 let lastText = "";
@@ -35,6 +39,7 @@ const LABELS: Record<OverlayState["kind"], string> = {
   listening: "Listening",
   transcribing: "Transcribing",
   rewriting: "Writing",
+  review: "Review",
   inserting: "Inserting",
   inserted: "Inserted",
   blocked: "Can't paste here",
@@ -60,6 +65,7 @@ function render(s: OverlayState): void {
   label.textContent = LABELS[s.kind];
   action.hidden = true;
   onAction = undefined;
+  hint.hidden = s.kind !== "review";
   const mode = "mode" in s ? s.mode : undefined;
   badge.hidden = !mode;
   if (mode) badge.textContent = MODE_LABELS[mode];
@@ -79,6 +85,15 @@ function render(s: OverlayState): void {
     case "rewriting":
       // Streamed rewrite tokens: shown, never logged or stored.
       text.textContent = s.text;
+      fit();
+      return;
+    case "review":
+      // Shown for approval, never logged or stored.
+      text.textContent = s.notice ? `${s.notice} ${s.text}` : s.text;
+      hint.textContent = REVIEW_HINT;
+      action.textContent = "Insert";
+      action.hidden = false;
+      onAction = () => pipeline.decideReview("insert");
       fit();
       return;
     case "inserting":
@@ -121,6 +136,31 @@ function render(s: OverlayState): void {
 action.addEventListener("click", () => onAction?.());
 badge.addEventListener("click", () => pipeline.cycleMode());
 
+// Settings (Story 2.6): cached copy at once, fresh copy from the API when signed in. The
+// settings window writes the cache; the `storage` event brings its changes here.
+const settings = new SettingsStore({
+  get: () => api.json<SettingsResponse>("/v1/settings"),
+  put: (body) =>
+    api.json<SettingsResponse>("/v1/settings", { method: "PUT", body: JSON.stringify(body) }),
+});
+let prefs: SettingsResponse | null = settings.current;
+let appliedHotkey = "";
+function applySettings(s: SettingsResponse | null): void {
+  prefs = s;
+  if (s && s.hotkey !== appliedHotkey) {
+    appliedHotkey = s.hotkey;
+    void invoke("set_hotkey", { hotkey: s.hotkey }).catch(() => {});
+  }
+}
+applySettings(prefs);
+settings.subscribe(applySettings);
+window.addEventListener("storage", (e) => {
+  if (e.key === SETTINGS_CACHE_KEY) {
+    const next = parseCached(e.newValue);
+    if (next) applySettings(next);
+  }
+});
+
 const pipeline = new DictationPipeline({
   takeSession: () => tokens.take(),
   newScribe: (opts) => new ScribeSession(opts),
@@ -132,6 +172,10 @@ const pipeline = new DictationPipeline({
   clientVersion: CLIENT_VERSION,
   rewrite: (req, onToken) => streamRewrite(api, req, (_t, soFar) => onToken(soFar)),
   recordTiming: (record) => void invoke("timing_append", { record }).catch(() => {}),
+  modePrefs: () =>
+    prefs ? { defaultMode: prefs.defaultMode, overrides: prefs.appModeOverrides } : DEFAULT_PREFS,
+  insertMode: () => prefs?.insertMode ?? "auto",
+  reviewKeys: (active) => void invoke("review_keys", { active }).catch(() => {}),
 });
 
 function toArrayBuffer(m: unknown): ArrayBuffer | undefined {
@@ -166,7 +210,10 @@ window.addEventListener("storage", (e) => {
 
 // Warm the token cache if signed in, and again when the network comes back.
 async function warm(): Promise<void> {
-  if (await credentialSessionStore.load().catch(() => null)) tokens.prefetch();
+  if (await credentialSessionStore.load().catch(() => null)) {
+    tokens.prefetch();
+    void settings.load().catch(() => {});
+  }
 }
 void warm();
 window.addEventListener("online", () => void warm());

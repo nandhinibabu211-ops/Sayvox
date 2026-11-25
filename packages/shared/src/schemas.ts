@@ -77,6 +77,26 @@ export const SessionEndRequest = z.object({
 });
 export type SessionEndRequest = z.infer<typeof SessionEndRequest>;
 
+/**
+ * Hold-to-talk chords the user can pick (Story 2.6 / T072). Modifier-only, two keys.
+ * Ctrl+Shift is also Windows' keyboard-layout switch for people with several input
+ * languages; Ctrl+Alt is AltGr on some layouts (₹, €). Hence the choice.
+ */
+export const HOTKEY_OPTIONS = [
+  "Ctrl+Shift",
+  "Ctrl+Alt",
+  "Alt+Shift",
+  "Ctrl+Win",
+  "Shift+Win",
+] as const;
+export const Hotkey = z.enum(HOTKEY_OPTIONS);
+export type Hotkey = z.infer<typeof Hotkey>;
+
+/** Speech language hint (Settings → General). Mapped to Scribe params by the client. */
+export const LANGUAGE_HINTS = ["auto", "en", "en-IN", "hinglish"] as const;
+export const LanguageHint = z.enum(LANGUAGE_HINTS);
+export type LanguageHint = z.infer<typeof LanguageHint>;
+
 export const Settings = z.object({
   preset: Preset,
   defaultMode: Mode,
@@ -84,10 +104,21 @@ export const Settings = z.object({
     .record(TargetApp, Mode)
     .refine((o) => Object.keys(o).length <= 100, "At most 100 app overrides"),
   insertMode: InsertMode,
-  languageHint: z.string().nullable(),
-  hotkey: z.string(),
+  /** null = auto-detect. */
+  languageHint: LanguageHint.nullable(),
+  hotkey: Hotkey,
 });
 export type Settings = z.infer<typeof Settings>;
+
+/** GET/PUT /v1/settings response: the settings plus what the user's plan allows. */
+export const SettingsResponse = Settings.extend({
+  plan: z.object({
+    id: z.string(),
+    allowedPresets: z.array(Preset),
+    dictionaryLimit: z.int(),
+  }),
+});
+export type SettingsResponse = z.infer<typeof SettingsResponse>;
 
 export const DictionaryTerm = z.object({
   id: z.uuid(),
@@ -96,9 +127,28 @@ export const DictionaryTerm = z.object({
 });
 export type DictionaryTerm = z.infer<typeof DictionaryTerm>;
 
+/** Collapse inner whitespace; reject control characters (they'd break keyterm URLs). */
+export const DictionaryTermText = z
+  .string()
+  .transform((s) => s.trim().replace(/\s+/g, " "))
+  .pipe(
+    z
+      .string()
+      .min(1, "Term is empty")
+      .max(64, "Terms can be at most 64 characters")
+      // eslint-disable-next-line no-control-regex -- rejecting control characters on purpose
+      .refine((s) => !/[\u0000-\u001f\u007f]/.test(s), "Term has invalid characters"),
+  );
+
 export const AddDictionaryTermRequest = z.object({
-  term: z.string().trim().min(1).max(64),
+  term: DictionaryTermText,
 });
+
+export const DictionaryList = z.object({
+  terms: z.array(DictionaryTerm),
+  limit: z.int(),
+});
+export type DictionaryList = z.infer<typeof DictionaryList>;
 export type AddDictionaryTermRequest = z.infer<typeof AddDictionaryTermRequest>;
 
 export const Usage = z.object({

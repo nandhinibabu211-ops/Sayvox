@@ -1,4 +1,11 @@
-import type { Mode, RewriteRequest, SessionEndRequest, SessionStartResponse } from "@sayvox/shared";
+import type {
+  InsertMode,
+  Mode,
+  RewriteRequest,
+  SessionEndRequest,
+  SessionStartResponse,
+} from "@sayvox/shared";
+import { ReviewGate, type ReviewDecision } from "../overlay/review";
 import { errorFor, type OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
 import { cleanup } from "./cleanup";
@@ -15,6 +22,8 @@ export type DictationEvent =
   | { kind: "cancel"; t: number }
   /** Opt-in reply context: text selected in the target app at press (T063). */
   | { kind: "context"; threadContext: string }
+  /** Enter (accept) / Esc while a rewrite waits for review (T071). */
+  | { kind: "review"; accept: boolean }
   | { kind: "audioError"; code: string };
 
 export type InsertOutcome = "inserted" | "blockedElevated" | { failed: { reason: string } };
@@ -39,6 +48,12 @@ export interface PipelineDeps {
   rewrite?: (req: RewriteRequest, onToken: (soFar: string) => void) => Promise<RewriteDone>;
   /** User's default mode and per-app overrides (Settings → Modes, Story 2.6). */
   modePrefs?: () => ModePrefs;
+  /** Settings → General: insert at once, or wait for Enter / Esc after a rewrite. */
+  insertMode?: () => InsertMode;
+  /** Turn Rust's global Enter/Esc capture on or off (`review_keys`). */
+  reviewKeys?: (active: boolean) => void;
+  /** Injected in tests; built from `reviewKeys` otherwise. */
+  reviewGate?: ReviewGate;
   /** Local timing log for the Phase 1 gate (debug builds); numbers only. */
   recordTiming?: (r: {
     releaseToInsertMs: number;
@@ -78,9 +93,16 @@ function errorCode(err: unknown): string {
 export class DictationPipeline {
   private active: Active | undefined;
   private readonly schedule: (fn: () => void, ms: number) => void;
+  private readonly review: ReviewGate;
 
   constructor(private readonly deps: PipelineDeps) {
     this.schedule = deps.schedule ?? ((fn, ms) => void setTimeout(fn, ms));
+    this.review = deps.reviewGate ?? new ReviewGate({ captureKeys: (on) => deps.reviewKeys?.(on) });
+  }
+
+  /** Overlay buttons in the review state (same as Enter / Esc). */
+  decideReview(d: ReviewDecision): void {
+    this.review.decide(d);
   }
 
   private show(s: OverlayState): void {
@@ -107,6 +129,9 @@ export class DictationPipeline {
         return this.release(ev.t, ev.audioSeconds);
       case "cancel":
         return this.cancel();
+      case "review":
+        this.review.decide(ev.accept ? "insert" : "discard");
+        return;
       case "context":
         if (this.active && !this.active.ended) this.active.threadContext = ev.threadContext;
         return;
@@ -126,6 +151,8 @@ export class DictationPipeline {
   }
 
   private press(app: string): void {
+    // A new dictation while one waits for review: the user moved on, so discard it.
+    this.review.decide("discard");
     if (this.active && !this.active.ended) this.cancel();
     const session = this.deps.takeSession();
     const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
@@ -192,7 +219,9 @@ export class DictationPipeline {
 
     let text = cleaned;
     let notice: string | undefined;
-    if (a.mode !== "dictation" && this.deps.rewrite) {
+    let reviewMs = 0;
+    const rewritten = a.mode !== "dictation" && this.deps.rewrite !== undefined;
+    if (rewritten && this.deps.rewrite) {
       this.show({ kind: "rewriting", text: "", mode: a.mode });
       try {
         const done = await this.deps.rewrite(
@@ -214,11 +243,33 @@ export class DictationPipeline {
       }
     }
 
+    // Review before insert applies to AI rewrites (front-end spec §3.2: Rewriting → Review).
+    if (rewritten && this.deps.insertMode?.() === "review") {
+      const opened = await this.deps.now();
+      this.show(
+        notice
+          ? { kind: "review", text, mode: a.mode, notice }
+          : { kind: "review", text, mode: a.mode },
+      );
+      const decision = await this.review.wait();
+      reviewMs = Math.max(0, (await this.deps.now()) - opened);
+      if (decision === "discard") {
+        // A new press may already own the overlay; only hide if this one still does.
+        if (this.active === a) this.show({ kind: "hidden" });
+        void this.end(a, session.sessionId, audioSeconds, "discarded", result.commitMs, 0);
+        return;
+      }
+    }
+
     this.show({ kind: "inserting", text });
     const outcome = await this.deps
       .insert(text)
       .catch((e: unknown): InsertOutcome => ({ failed: { reason: String(e) } }));
-    const releaseToInsertMs = Math.max(0, Math.round((await this.deps.now()) - releaseT));
+    // Time the user spent reviewing isn't Sayvox latency.
+    const releaseToInsertMs = Math.max(
+      0,
+      Math.round((await this.deps.now()) - releaseT - reviewMs),
+    );
 
     if (outcome === "inserted") {
       this.show(notice ? { kind: "inserted", text, notice } : { kind: "inserted", text });

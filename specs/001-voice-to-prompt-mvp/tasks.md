@@ -107,15 +107,15 @@ Tests are written first and must fail before implementation (Constitution V).
 - [x] T063 [US3] Optional `threadContext` plumbing (never stored) — opt-in selected-text capture via UI Automation (`src-tauri/src/selection/`), pipeline + `/v1/rewrite`
 
 ## Phase 6: User Story 4 — Personalisation (P2)
-- [ ] T064 [P] [US4] Contract tests settings + dictionary — `apps/api/test/contract/settings.test.ts`, `dictionary.test.ts`
-- [ ] T065 [US4] `GET/PUT /v1/settings` with Redis cache + plan preset check — `apps/api/src/modules/settings/`
-- [ ] T066 [US4] `GET/POST/DELETE /v1/dictionary` with plan cap — `apps/api/src/modules/dictionary/`
-- [ ] T067 [P] [US4] Settings UI: General (hotkey recorder, insert mode, language, mic) — `apps/desktop/src/settings/General.tsx`
-- [ ] T068 [P] [US4] Settings UI: Modes + per-app overrides — `apps/desktop/src/settings/Modes.tsx`
-- [ ] T069 [P] [US4] Settings UI: Preset cards (locked by plan) — `apps/desktop/src/settings/Preset.tsx`
-- [ ] T070 [P] [US4] Dictionary UI — `apps/desktop/src/settings/Dictionary.tsx`
-- [ ] T071 [US4] Review-before-insert state (Enter/Esc) — `apps/desktop/src/overlay/review.ts`
-- [ ] T072 [US4] Rebindable hotkey support — `src-tauri/src/hotkey/binding.rs`
+- [x] T064 [P] [US4] Contract tests settings + dictionary — `apps/api/test/integration/settings.test.ts` (needs Postgres + Redis, so it lives with the integration suite; covers both endpoints)
+- [x] T065 [US4] `GET/PUT /v1/settings` with Redis cache + plan preset check — `apps/api/src/modules/settings/`
+- [x] T066 [US4] `GET/POST/DELETE /v1/dictionary` with plan cap — `apps/api/src/modules/dictionary/`
+- [x] T067 [P] [US4] Settings UI: General (hotkey recorder, insert mode, language, mic) — `apps/desktop/src/settings/General.ts` (plain TS/DOM like the rest of the desktop app; launch-at-login and mic device picker not yet built)
+- [x] T068 [P] [US4] Settings UI: Modes + per-app overrides — `apps/desktop/src/settings/Modes.ts`
+- [x] T069 [P] [US4] Settings UI: Preset cards (locked by plan) — `apps/desktop/src/settings/Preset.ts`
+- [x] T070 [P] [US4] Dictionary UI — `apps/desktop/src/settings/Dictionary.ts`
+- [x] T071 [US4] Review-before-insert state (Enter/Esc) — `apps/desktop/src/overlay/review.ts`, `src-tauri/src/hotkey/review.rs`
+- [x] T072 [US4] Rebindable hotkey support — `src-tauri/src/hotkey/binding.rs`
 
 ## Phase 7: User Story 6 — Trust & data control (P2)
 - [ ] T073 [P] [US6] Privacy page + terms — `apps/web/src/pages/privacy.*`, `terms.*`
