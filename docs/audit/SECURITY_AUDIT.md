@@ -8,7 +8,7 @@ the automated tests.
 
 | ID | Severity | Finding | Status |
 | --- | --- | --- | --- |
-| SEC-03 | **High** | Usage is client-reported: server-side quota can be bypassed by a modified client | **Open: needs owner decision** |
+| SEC-03 | **High** | Usage was client-reported: server-side quota could be bypassed by a modified client | **Fixed** (audio proxy, ADR-011) |
 | SEC-01 | High | Unlimited `/v1/rewrite` calls per open session (LLM cost abuse) | **Fixed** |
 | SEC-07 | High (release blocker) | Updater public key not set | Open (owner action) |
 | SEC-02 | Medium | `users.email` UNIQUE breaks sign-in for two identities with one email | **Fixed** |
@@ -21,7 +21,7 @@ the automated tests.
 | SEC-11 | Low | Terraform state holds generated DB/Redis credentials | Open (documented) |
 | SEC-12 | Low | Suspended/plan-changed users keep the cached state up to 60 s | Open (accepted) |
 
-### SEC-03 (High, open): quota relies on client-reported audio seconds
+### SEC-03 (High, fixed): quota relied on client-reported audio seconds
 
 **What:** Audio goes from the app straight to ElevenLabs with a single-use token; the API
 never sees it. Usage is recorded from `audioSeconds` in `POST /v1/session/:id/end`, clamped
@@ -34,7 +34,18 @@ billed Scribe audio. With the 30 sessions/min rate limit one free account can st
 continuously, unbilled against its quota, paid for by Sayvox. Weekly reconciliation (T096)
 detects the total drift, not the user.
 
-**Remediation (pick one, owner decision):**
+**Fix (owner chose option 2, ADR-011):** the desktop streams to the API's `/v1/stream`
+WebSocket, which forwards to Scribe with the server-held token and meters every chunk
+(`bytes / 32 000` s, 16 kHz PCM16 fixed in the upstream URL). It stops forwarding at
+`maxSessionSeconds` and charges the metered seconds once when the socket closes
+(`modules/stream/*`, `sessions.metered_at`). `/end` no longer adds usage. The client gets only
+a one-time ticket, sent as a WebSocket subprotocol (never in the URL). Shutdown charges open
+streams before the database closes. Tests: `test/unit/stream-proxy.test.ts` (8, local, mock
+Scribe), `test/integration/stream.test.ts` (whole path, real Postgres + Redis; client reports
+0, usage is still 2.5 s) and `test/integration/session.test.ts` (charges once; `/end`
+ignores `audioSeconds`).
+
+Options that were considered:
 1. Charge every un-ended or zero-reported session a minimum (e.g. the token's
    `maxSessionSeconds`, refunded on a plausible `/end`). Simple; overcharges prefetched,
    unused sessions unless prefetch is changed to not create sessions.
@@ -43,9 +54,10 @@ detects the total drift, not the user.
 3. Per-user anomaly detection: flag accounts whose reported audio is far below sessions ×
    typical length, and suspend. Cheap; reactive.
 
-Also lower the per-user concurrent open sessions to 2 to bound the damage now.
-Until one of these ships, keep the ElevenLabs usage-based billing cap low
-(kill-switch.md "Cost").
+Still recommended: keep the ElevenLabs usage-based billing cap low (kill-switch.md "Cost").
+New trade-offs (ADR-011): an extra network hop (latency unmeasured), audio bandwidth through
+Cloud Run, and audio now passes through Sayvox servers (never stored or logged; the privacy
+page says so).
 
 ### SEC-01 (High, fixed): rewrite loop on one open session
 
@@ -100,8 +112,8 @@ Rust: `cargo audit` is not installed here; add it to CI (KI-09).
 ### SEC-06, SEC-10, SEC-11, SEC-12 (Low)
 
 - **SEC-06:** `email_verified` is not required. Identity is the uid, so there is no takeover
-  risk; the cost is free-tier farming with throwaway accounts, which matters mostly because of
-  SEC-03.
+  risk; the cost is free-tier farming with throwaway accounts (each still limited by the
+  now server-metered quota).
 - **SEC-10:** Cloud SQL requires TLS (`ENCRYPTED_ONLY`) over a private IP; the client
   encrypts without verifying the server certificate. Acceptable inside the VPC; pin the
   Cloud SQL CA later.

@@ -85,9 +85,22 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /v1/stream:
+    get:
+      summary: Metered speech-to-text stream (WebSocket upgrade, ADR-011)
+      description: >
+        Upgrade with `Sec-WebSocket-Protocol: sayvox.stream.v1, <streamTicket>` (no bearer
+        token, no query string). The server selects `sayvox.stream.v1`, then proxies the
+        Scribe realtime protocol (contracts/scribe-realtime.md) to ElevenLabs, meters the
+        audio and charges it to the session's user when the socket closes.
+      security: []
+      responses:
+        "101": { description: Switching protocols }
+        "401": { description: Missing, unknown, expired or already-used ticket }
+
   /v1/session/{id}/end:
     post:
-      summary: Close a session with client timings
+      summary: Close a session with client timings (usage is metered by /v1/stream, not taken from audioSeconds)
       parameters:
         - in: path
           name: id
@@ -343,10 +356,16 @@ components:
           description: Present when x-client-version was sent; true if below minClientVersion
     SessionStartResponse:
       type: object
-      required: [sessionId, scribeToken, keyterms, maxSessionSeconds, expiresAt]
+      required: [sessionId, streamTicket, keyterms, maxSessionSeconds, expiresAt]
       properties:
         sessionId: { type: string, format: uuid }
-        scribeToken: { type: string }
+        streamTicket:
+          type: string
+          pattern: "^[A-Za-z0-9_-]{43}$"
+          description: >
+            One-time ticket for the GET /v1/stream WebSocket (subprotocols
+            ["sayvox.stream.v1", ticket]). The Scribe token stays on the server, which proxies
+            and meters the audio (ADR-011).
         expiresAt: { type: string, format: date-time }
         keyterms: { type: array, items: { type: string } }
         languageHint: { type: string, nullable: true }

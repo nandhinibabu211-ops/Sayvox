@@ -11,7 +11,7 @@ import { ApiError } from "./apiClient";
 import { cleanup } from "./cleanup";
 import { DEFAULT_PREFS, nextMode, resolveMode, type ModePrefs } from "./modeResolver";
 import type { RewriteDone } from "./rewriteClient";
-import type { CommitResult, ScribeOptions } from "./scribeClient";
+import type { CommitResult, ScribeStreamOptions } from "./scribeClient";
 import { ScribeError } from "./scribeClient";
 import { SessionExpiredError } from "./session";
 
@@ -37,7 +37,7 @@ export interface ScribeLike {
 
 export interface PipelineDeps {
   takeSession: () => Promise<SessionStartResponse>;
-  newScribe: (opts: ScribeOptions) => ScribeLike;
+  newScribe: (opts: ScribeStreamOptions) => ScribeLike;
   insert: (text: string) => Promise<InsertOutcome>;
   /** Rust monotonic clock (same clock as event `t`). */
   now: () => Promise<number>;
@@ -182,10 +182,8 @@ export class DictationPipeline {
       mode,
       scribe: session.then((s) => {
         const scribe = this.deps.newScribe({
-          token: s.scribeToken,
-          keyterms: s.keyterms,
-          languageHint: s.languageHint ?? null,
-          refreshToken: async () => (await this.deps.takeSession()).scribeToken,
+          ticket: s.streamTicket,
+          refreshTicket: async () => (await this.deps.takeSession()).streamTicket,
           onPartial: (text) => {
             if (this.active !== a || a.ended) return;
             a.partial = text;

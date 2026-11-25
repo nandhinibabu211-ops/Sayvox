@@ -75,7 +75,8 @@ Count per user ≤ `plans.dictionary_limit`.
 | started_at / ended_at | timestamptz | |
 | mode | mode | nullable until rewrite/end |
 | target_app | text | app id only (exe name) |
-| audio_seconds | numeric(8,2) | clamped ≤ max_session_seconds |
+| audio_seconds | numeric(8,2) | metered by the `/v1/stream` proxy (≤ max_session_seconds), never client-reported (ADR-011); null if nothing was streamed |
+| metered_at | timestamptz | set when the proxy charged this session (charges once) |
 | model_used | text | nullable (dictation fast path) |
 | fallback_used | bool | default false |
 | keyterms_used | bool | default false; keyterms sent to Scribe (+$0.08/h STT cost) |
@@ -116,12 +117,15 @@ started ──(sweeper: TTL expired)───▶ abandoned
 ```
 
 ## Redis keys
+
 | Key | Type | TTL | Purpose |
 | --- | --- | --- | --- |
 | `rl:{userId}` | token bucket | 60 s | session-start rate limit |
 | `quota:day:{userId}:{yyyymmdd}` | int (seconds) | 48 h | daily audio |
 | `quota:month:{userId}:{yyyymm}` | int (seconds) | 40 d | monthly audio |
 | `settings:{userId}` | JSON | 5 min | settings + keyterms cache |
+| `stream:{ticket}` | JSON | Scribe token TTL (15 min); deleted on use | one-time `/v1/stream` ticket: session, user, Scribe token, keyterms, language, cap (ADR-011) |
+| `rw:{sessionId}` | int | 30 min | rewrites started for the session, cap 2 (audit SEC-01) |
 | `cfg:client` | JSON | none | kill switch, min version, rollout |
 | `cfg:presets` | JSON | none | preset → model slug overrides |
 

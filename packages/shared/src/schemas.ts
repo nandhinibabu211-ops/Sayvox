@@ -43,7 +43,12 @@ export type SessionStartRequest = z.infer<typeof SessionStartRequest>;
 
 export const SessionStartResponse = z.object({
   sessionId: z.uuid(),
-  scribeToken: z.string().min(1),
+  /**
+   * One-time ticket for `GET /v1/stream` (WebSocket, subprotocols
+   * ["sayvox.stream.v1", ticket]). The ElevenLabs token stays on the server, which proxies
+   * and meters the audio (audit SEC-03).
+   */
+  streamTicket: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   expiresAt: z.iso.datetime(),
   keyterms: z.array(z.string()),
   languageHint: z.string().nullable().optional(),
@@ -65,6 +70,7 @@ export const InsertResult = z.enum(["inserted", "raw_fallback", "discarded", "fa
 export type InsertResult = z.infer<typeof InsertResult>;
 
 export const SessionEndRequest = z.object({
+  /** Client-side estimate, kept for diagnostics only: usage is metered by /v1/stream. */
   audioSeconds: z.number().min(0),
   mode: Mode.optional(),
   targetApp: TargetApp.optional(),

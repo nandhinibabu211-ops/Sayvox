@@ -128,7 +128,7 @@ flowchart LR
 export type Mode = "dictation" | "prompt" | "email";
 export type Preset = "fastest" | "balanced" | "cheapest";
 export interface SessionStartResponse {
-  sessionId: string; scribeToken: string; keyterms: string[];
+  sessionId: string; streamTicket: string; keyterms: string[]; // ticket for /v1/stream (ADR-011)
   maxSessionSeconds: number; languageHint?: string;
 }
 export interface RewriteRequest {
@@ -203,15 +203,19 @@ sequenceDiagram
   participant OR as OpenRouter
   U->>C: Hold Ctrl+Shift
   C->>API: POST /session/start (or use pre-fetched)
-  API-->>C: sessionId, scribeToken, keyterms
-  C->>EL: WS connect (token, pcm_16000, manual commit)
+  API-->>C: sessionId, streamTicket, keyterms
+  C->>API: WS /v1/stream (ticket as subprotocol)
+  API->>EL: WS connect (server-held token, pcm_16000, manual commit)
   loop while held
-    C->>EL: input_audio_chunk
-    EL-->>C: partial_transcript
+    C->>API: input_audio_chunk (metered)
+    API->>EL: input_audio_chunk
+    EL-->>C: partial_transcript (via API)
   end
   U->>C: Release
-  C->>EL: commit
-  EL-->>C: committed_transcript
+  C->>API: commit
+  API->>EL: commit
+  EL-->>C: committed_transcript (via API)
+  API->>API: charge metered seconds on close
   C->>API: POST /rewrite (SSE)
   API->>OR: chat/completions stream, models[]
   OR-->>API: tokens

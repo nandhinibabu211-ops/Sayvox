@@ -8,7 +8,7 @@ measured, and what was verified in code.
 | Metric | Target | How it is measured | Result | Status |
 | --- | --- | --- | --- | --- |
 | Audio capture latency | part of release → insert | `eval/timing` harness (client timings) | not run | BLOCKED |
-| Speech-to-text (Scribe commit) | p95 feeds release→insert | `stt_commit_ms` metric, timing harness | not run | BLOCKED |
+| Speech-to-text (Scribe commit, through the API proxy, ADR-011) | p95 feeds release→insert | `stt_commit_ms` metric, timing harness | not run; proxy hop adds unmeasured latency | BLOCKED |
 | Release → inserted, dictation | p50 < 1 s, alert p95 > 1.2 s | `release_to_insert_ms` + T040 harness (20 phrases) | not run (Phase 1 gate) | BLOCKED |
 | AI first token | 1.5 s per-attempt deadline | `llm_ttft_ms` | not run | BLOCKED |
 | Release → inserted, prompt/email | p95 ≤ 3 s | timing harness, T058 | not run (Phase 2 gate) | BLOCKED |

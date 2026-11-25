@@ -77,7 +77,8 @@ jobs:
           if ($u.Scheme -ne "https") { Write-Error "API_BASE_URL must be an https URL"; exit 1 }
           $origin = "https://$($u.Authority)"
           $base = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).app.security.csp
-          $csp = $base.Replace("http://localhost:8787 https://*.a.run.app", $origin)
+          # https for the API, wss for the metered speech stream (/v1/stream).
+          $csp = $base.Replace("http://localhost:8787 ws://localhost:8787 https://*.a.run.app", "$origin wss://$($u.Authority)")
           if ($csp -eq $base) { Write-Error "dev CSP hosts not found in tauri.conf.json"; exit 1 }
           $path = "apps/desktop/src-tauri/tauri.release.conf.json"
           $conf = Get-Content $path -Raw | ConvertFrom-Json

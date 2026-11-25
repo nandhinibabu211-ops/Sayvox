@@ -9,6 +9,7 @@ import { registerAuth, type AuthOptions } from "./modules/auth/plugin";
 import { registerRewriteRoutes, type RewriteDeps } from "./modules/rewrite/routes";
 import { registerSessionRoutes, type SessionDeps } from "./modules/session/routes";
 import { registerSettingsRoutes, type SettingsDeps } from "./modules/settings/routes";
+import { registerStreamProxy, type StreamDeps } from "./modules/stream/proxy";
 import { registerTelemetryRoutes, type TelemetryDeps } from "./modules/telemetry/routes";
 import { registerErrorHandling } from "./plugins/errors";
 
@@ -32,6 +33,8 @@ export interface BuildAppOptions {
   usage?: UsageDeps;
   /** /v1/billing/* (checkout and cancel need `auth`; the webhook is public, signed). */
   billing?: BillingDeps;
+  /** WebSocket /v1/stream: metered Scribe proxy (audit SEC-03); auth is the session ticket. */
+  stream?: StreamDeps;
 }
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
@@ -47,6 +50,7 @@ export function buildApp({
   clientConfig,
   usage,
   billing,
+  stream,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
@@ -67,7 +71,11 @@ export function buildApp({
   registerHttpMetrics(app);
   if (auth) registerAuth(app, auth);
 
-  app.get("/healthz", { config: { public: true } }, async () => ({ status: "ok" }));
+  // /healthz for container probes; /health from outside, because Cloud Run's frontend
+  // reserves paths ending in "z" and answers /healthz with its own 404.
+  const health = async () => ({ status: "ok" });
+  app.get("/healthz", { config: { public: true } }, health);
+  app.get("/health", { config: { public: true } }, health);
   if (clientConfig) registerClientConfigRoutes(app, clientConfig);
   if (session) {
     if (!auth) throw new Error("session routes require auth");
@@ -97,6 +105,7 @@ export function buildApp({
     if (!auth) throw new Error("billing routes require auth");
     registerBillingRoutes(app, billing);
   }
+  if (stream) registerStreamProxy(app, stream);
 
   return app;
 }

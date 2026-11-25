@@ -5,9 +5,9 @@ import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
 import { DEFAULT_PREFS } from "../services/modeResolver";
 import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
-import { CLIENT_VERSION, createApiClient } from "../services/runtime";
+import { API_BASE_URL, CLIENT_VERSION, createApiClient } from "../services/runtime";
 import { streamRewrite } from "../services/rewriteClient";
-import { ScribeSession } from "../services/scribeClient";
+import { ScribeSession, streamUrl } from "../services/scribeClient";
 import { credentialSessionStore } from "../services/session";
 import { parseCached, SETTINGS_CACHE_KEY, SettingsStore } from "../services/settingsStore";
 import { TokenCache } from "../services/tokenCache";
@@ -25,6 +25,7 @@ import { hotkeyLabel } from "../settings/model";
  */
 
 const api = createApiClient();
+const STREAM_URL = streamUrl(API_BASE_URL);
 const telemetry = startTelemetry(api, "overlay");
 const analytics = new ProductAnalytics((name, fields) => telemetry.event(name, fields));
 const tokens = new TokenCache(() =>
@@ -209,7 +210,7 @@ window.addEventListener("storage", (e) => {
 
 const pipeline = new DictationPipeline({
   takeSession: () => tokens.take(),
-  newScribe: (opts) => new ScribeSession(opts),
+  newScribe: (opts) => new ScribeSession({ ...opts, url: STREAM_URL }),
   insert: (t) => invoke<InsertOutcome>("insert_text", { text: t }),
   now: () => invoke<number>("dictation_now"),
   endSession: (id, body) =>

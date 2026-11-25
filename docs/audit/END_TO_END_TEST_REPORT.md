@@ -21,7 +21,7 @@ mocks/containers, not real providers.
 | 5 | Select microphone | Chosen device used | Settings UI code present | BLOCKED | needs real devices | — |
 | 6 | Press Ctrl+Shift | Hold starts, release stops, other keys cancel | State machine tested | PASS (auto) / BLOCKED on Windows | `hotkey/state.rs` tests | — |
 | 7 | Start recording | 16 kHz mono frames | Resampler/chunker tested | PASS (auto) / BLOCKED live | `audio/dsp.rs` tests | — |
-| 8 | Stream to ElevenLabs | Partials then commit | Against mock Scribe server only | PASS (auto) / BLOCKED live | `scribeClient` tests, mock server | — |
+| 8 | Stream to ElevenLabs (through the API proxy) | Partials then commit; audio metered | Against mock Scribe server only | PASS (auto) / BLOCKED live | `scribeClient` tests, `stream-proxy.test.ts`, `integration/stream.test.ts` | Audio proxy (SEC-03) |
 | 9 | Receive transcription | Final text | mock only | BLOCKED live | no ElevenLabs key | — |
 | 10 | Clean transcription | fillers/self-corrections removed | As expected | PASS (auto) | `cleanup.test.ts` | — |
 | 11 | Structured prompt via OpenRouter | SSE meta → tokens → done | Against mock OpenRouter | PASS (auto) / BLOCKED live | `rewrite-route.test.ts`, `rewrite-fallback.test.ts` | Rewrite cap per session (SEC-01) |
@@ -29,7 +29,7 @@ mocks/containers, not real providers.
 | 13 | Insert at cursor, clipboard restored | Text pasted, clipboard unchanged | Ordering tested | PASS (auto) / BLOCKED on Windows | `insert` tests | — |
 | 14 | Review before insert | Enter inserts, Esc discards | State tested | PASS (auto) | `review.rs`, pipeline tests | — |
 | 15 | Save/retrieve settings | Persisted, cached, plan-checked | As expected | PASS (auto) | integration `settings.test.ts` (CI) | — |
-| 16 | Usage limits | Daily/monthly caps enforced at session start | As expected for honest clients | PASS (auto) | integration `session.test.ts` | **SEC-03 open** |
+| 16 | Usage limits | Daily/monthly caps enforced from server-metered audio | As expected, also when the client reports 0 | PASS (auto) | integration `session.test.ts`, `stream.test.ts` | SEC-03 fixed |
 | 17 | Subscription and payment | Checkout link, webhook activates plan | Against fake Razorpay only | PASS (auto) / BLOCKED live | integration `billing.test.ts` (CI) | — |
 | 18 | Application update | Signed update installs after idle | Updater not configured | BLOCKED | KI-02 | — |
 | — | Whole workflow in one run | Steps 1–18 on a real PC | Not possible | BLOCKED | T101 open | — |
@@ -84,7 +84,7 @@ unit tests, at PR #9 head `f6ece23` (10/10 checks green). The new audit tests in
 | Free plan limits (10/day, 120/month, 2 presets, 25 terms) | Enforced | Seed + tests | PASS (auto) |
 | Pro plan limits | Defined | **Placeholders** in seed (KI-05) | FAIL (not defined) |
 | Daily and monthly quota | 429/403 at the cap | As expected for honest clients | PASS (auto) |
-| Server-side quota cannot be bypassed | Modified client still limited | **Bypassable** by under-reporting audio | **FAIL (SEC-03)** |
+| Server-side quota cannot be bypassed | Modified client still limited | Usage metered by the proxy; client `audioSeconds` ignored; cap enforced while streaming | PASS (auto) |
 | Razorpay checkout | `short_url` returned | Fake client only | BLOCKED (no keys) |
 | Successful / failed payments | active / past_due → halted | Webhook tests | PASS (auto) / BLOCKED live |
 | Duplicate webhooks | Ignored | As expected | PASS (auto) |
