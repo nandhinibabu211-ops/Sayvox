@@ -37,14 +37,25 @@ function show(text: string, isError = false): void {
   status.classList.toggle("error", isError);
 }
 
+// From the desktop app the URL carries ?port&state and the session is handed to the app.
+// Opened directly, the page still lets people create an account, check their password or
+// reset it; it then signs out and keeps nothing.
 const handoff = parseHandoff(window.location.search);
 if (!handoff) {
-  show("Open this page from the Sayvox app to sign in.", true);
-  buttons().forEach((b) => (b.disabled = true));
+  show(
+    "You can create your account or reset your password here. To dictate, sign in from the Sayvox app.",
+  );
 }
 
 async function finish(user: User): Promise<void> {
-  if (!handoff) return;
+  if (!handoff) {
+    const who = user.email ?? "your account";
+    await auth.signOut();
+    show(
+      `Done: ${who} works. Now open the Sayvox app and sign in there with the same email and password.`,
+    );
+    return;
+  }
   show("Signing you in to the app…");
   const result = await user.getIdTokenResult();
   const expiresIn = Math.max(
