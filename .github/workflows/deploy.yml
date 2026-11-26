@@ -101,6 +101,9 @@ jobs:
   production:
     name: Deploy to production
     needs: staging
+    # Off until prod infrastructure exists and the `production` environment has required
+    # reviewers: set the repository variable PROD_ENABLED=true (docs/runbooks/deploy.md).
+    if: vars.PROD_ENABLED == 'true'
     runs-on: ubuntu-latest
     environment: production # required reviewers = the manual approval gate
     env:

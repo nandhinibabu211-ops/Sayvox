@@ -95,4 +95,4 @@ Write the results (date, who, times, problems) at the bottom of this file.
 
 | Date | Who | Result | Notes |
 | --- | --- | --- | --- |
-| | | | |
+| 2026-11-26 | Claude (staging) | Pass: steps 1-4 | Kill switch visible in `/v1/client-config` 35 s after starting the cfg job (job run ~25 s + 10 s config cache); off again within 12 s. `minClientVersion=99.0.0` -> `updateRequired: true`; `rolloutPercent=0` -> `inRollout: false`; both restored. API rollback to revision 00001 in 13 s (`/health` 404 there, proving the old image served; client config 200 throughout), back to latest in 13 s. Not covered: the desktop app's reaction (no build on staging yet), step 5 (needs deploy.yml prod job), step 6 (no release yet). |

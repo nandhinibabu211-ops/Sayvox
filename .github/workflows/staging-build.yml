@@ -1,0 +1,88 @@
+name: Staging test installer
+
+# A Windows installer wired to STAGING (API, web pages, sign-in), for manual testing on
+# Windows 10 and 11 (T101) before any real release exists. Unsigned (ADR-007), without
+# updater artifacts (the updater key isn't needed; the app reports updates as not
+# configured). Not for users: the release workflow builds those.
+#
+# Run: GitHub -> Actions -> "Staging test installer" -> Run workflow. Download the
+# artifact (Sayvox staging installers) from the run page.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build staging installers
+    runs-on: windows-latest
+    environment: staging
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+
+      # Same pinning as release.yml, into a staging config: the webview may talk only to the
+      # staging API (https + wss) and open only the staging web pages.
+      - name: Point the app at staging
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          WEB_ORIGIN: ${{ vars.WEB_ORIGIN }}
+        run: |
+          $u = [Uri]$env:API_BASE_URL
+          $w = [Uri]$env:WEB_ORIGIN
+          if ($u.Scheme -ne "https" -or $w.Scheme -ne "https") { Write-Error "API_BASE_URL and WEB_ORIGIN must be https"; exit 1 }
+          $api = "https://$($u.Authority)"
+          $web = "https://$($w.Authority)"
+          $base = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).app.security.csp
+          $csp = $base.Replace("http://localhost:8787 ws://localhost:8787 https://*.a.run.app", "$api wss://$($u.Authority)")
+          if ($csp -eq $base) { Write-Error "dev CSP hosts not found in tauri.conf.json"; exit 1 }
+          @{ app = @{ security = @{ csp = $csp } } } | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 apps/desktop/src-tauri/tauri.staging.conf.json
+          $cap = "apps/desktop/src-tauri/capabilities/default.json"
+          $text = Get-Content $cap -Raw
+          $dev = "https://sayvox-staging-web-264655228768.us-west1.run.app/*"
+          if (-not $text.Contains($dev)) { Write-Error "staging web origin not found in $cap"; exit 1 }
+          $text.Replace($dev, "$web/*") | Set-Content -Encoding utf8 -NoNewline $cap
+          "SAYVOX_WEB_ORIGIN=$web" >> $env:GITHUB_ENV
+          "VITE_WEB_ORIGIN=$web" >> $env:GITHUB_ENV
+          "API $api, web $web"
+
+      - name: Build (.msi + NSIS .exe, unsigned, no updater artifacts)
+        working-directory: apps/desktop
+        env:
+          # Build metadata (+), not a pre-release (-): "0.1.0-staging" would compare older than
+          # minClientVersion 0.1.0 and be refused with CLIENT_OUTDATED.
+          VITE_APP_VERSION: 0.1.0+staging
+          VITE_API_BASE_URL: ${{ vars.API_BASE_URL }}
+          VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_WEB_API_KEY }}
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --config src-tauri/tauri.staging.conf.json
+
+      - name: Collect installers and checksums
+        run: |
+          $bundle = "apps/desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle"
+          New-Item -ItemType Directory -Force out | Out-Null
+          Get-ChildItem "$bundle/nsis/*_x64-setup.exe", "$bundle/msi/*_x64_*.msi" | Copy-Item -Destination out/
+          if ((Get-ChildItem out).Count -lt 2) { Write-Error "installers not found"; exit 1 }
+          Get-ChildItem out -File | Sort-Object Name | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content -Encoding ascii out/SHA256SUMS.txt
+          Get-Content out/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sayvox staging installers
+          path: out/
+          retention-days: 14

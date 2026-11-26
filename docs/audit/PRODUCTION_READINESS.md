@@ -9,9 +9,10 @@ production readiness is about the running system, and none of it has run for rea
 
 ## Why not ready
 
-1. **Nothing is deployed or integrated.** In `sayvox-app-2026` the Cloud Run and Cloud SQL
-   APIs are disabled and no buckets exist. No call has ever been made to ElevenLabs,
-   OpenRouter, Razorpay or the production Identity Platform with real credentials.
+1. **Only staging exists, and without provider keys.** Staging (2026-11-26, us-west1) runs
+   the API, web pages, AlloyDB Express, Redis, monitoring and Identity Platform email sign-in;
+   smoke tests and the kill-switch/rollback drill pass. No call has yet been made to
+   ElevenLabs, OpenRouter or Razorpay with real credentials, and prod is not created.
 2. **No release can be built.** The updater public key is a placeholder (KI-02).
 3. **Critical tests are blocked, not passed:** the whole user journey on Windows 10 and 11
    (T101), the Phase 1 and Phase 2 latency/quality gates (T040, T058), the Lemon comparison
@@ -42,6 +43,8 @@ production readiness is about the running system, and none of it has run for rea
   ADR-011), rewrite cost loop (SEC-01, high), email uniqueness 500s (SEC-02), release CSP
   (SEC-04), plus a dependency pin and a corrected quickstart. The proxy's extra latency is
   unmeasured (KI-16).
+
+The owner's remaining manual steps are in `docs/OWNER_TODO.md`.
 
 See IMPLEMENTATION_AUDIT.md, END_TO_END_TEST_REPORT.md, SECURITY_AUDIT.md,
 PERFORMANCE_REPORT.md and KNOWN_ISSUES.md for the evidence.
