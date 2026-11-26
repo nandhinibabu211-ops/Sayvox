@@ -131,12 +131,12 @@ Legend: ✅ implemented + tested · 🟡 implemented, unverified against real in
 
 | Task | Status | Evidence / notes |
 | --- | --- | --- |
-| T092, T093, T097 observability, events, spend | 🟡 | Terraform validates in CI; never applied. Collector image tag unverified |
-| T094 Terraform + deploy pipeline | 🟡 | validates in CI; deploys gated off (`DEPLOY_ENABLED`) |
+| T092, T093, T097 observability, events, spend | 🟡 | applied on staging (dashboard, 4 alerts, events sink, ₹2,000 budget); app-metric alerts wait for real traffic |
+| T094 Terraform + deploy pipeline | 🟡 | staging applied and live (cheap shape); staging auto-deploy on; prod not created (`PROD_ENABLED` off) |
 | T095 LB + Cloud Armor | 🟡 | off until a domain exists (ADR-009) |
 | T096 reconciliation | 🟡 | unit tests; ElevenLabs STT series label unconfirmed (research R11) |
 | T098 load test | 🟠 | script + runbook; **never run** |
-| T099 kill-switch drill | 🟡 | procedure written; **drill never performed** |
+| T099 kill-switch drill | ✅ | staging drill 2026-11-26: kill switch, forced update, rollout halt, API rollback all pass (kill-switch.md log); desktop reaction not yet observed |
 | T100 landing page | ✅ | builds; Pro shows "Coming soon" |
 | T101 quickstart on Windows 10/11 | ❌ | not done; needs real machines. Quickstart corrected in this audit (wrong Node/pnpm versions, non-existent scripts and env switches) |
 
