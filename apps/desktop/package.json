@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sayvox/client": "workspace:*",
     "@sayvox/shared": "workspace:*",
     "@tauri-apps/api": "2.12.5",
     "@tauri-apps/plugin-deep-link": "2.6.3",

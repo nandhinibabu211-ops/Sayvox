@@ -13,6 +13,7 @@ import { createScribeTokenMinter } from "./lib/elevenlabs/token";
 import { startSweeper } from "./modules/session/sweeper";
 import { claimRewrite } from "./modules/limits/store";
 import { createAudioCharger } from "./modules/stream/charge";
+import { DEFAULT_CORS_ORIGINS } from "./plugins/cors";
 import { takeTicket } from "./modules/stream/ticket";
 import { closePool, pooledFetch } from "./lib/openrouter/pool";
 import { createOpenRouterClient } from "./lib/openrouter/stream";
@@ -119,6 +120,12 @@ const app = buildApp({
     webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
     totalCount: env.RAZORPAY_TOTAL_COUNT,
   },
+  corsOrigins: [
+    ...DEFAULT_CORS_ORIGINS,
+    ...env.CORS_ORIGINS.split(",")
+      .map((o) => o.trim())
+      .filter(Boolean),
+  ],
   telemetry: { logger },
   clientConfig: { config },
 });

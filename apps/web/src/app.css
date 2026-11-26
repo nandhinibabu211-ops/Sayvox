@@ -1,0 +1,136 @@
+/* In-browser app (app.html). Colours come from legal.css tokens (light and dark). */
+
+.webapp {
+  max-width: 720px;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bar .brand {
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  margin-right: auto;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+input[type="email"],
+input[type="password"],
+textarea {
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 16px;
+}
+
+button.link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  padding: 0;
+}
+
+.modes {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.modes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.talk {
+  width: 100%;
+  padding: 28px 16px;
+  font-size: 20px;
+  font-weight: 600;
+  border-radius: 14px;
+  border: 2px solid var(--accent);
+  background: var(--card);
+  color: var(--fg);
+  touch-action: none;
+  user-select: none;
+}
+
+.talk.recording {
+  background: var(--accent);
+  color: #fff;
+}
+
+.live {
+  min-height: 1.5em;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.out-label {
+  margin-top: 8px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#status.error {
+  color: #c62828;
+}
+
+.usage {
+  margin-top: 24px;
+}

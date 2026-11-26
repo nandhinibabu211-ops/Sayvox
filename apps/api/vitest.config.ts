@@ -4,7 +4,9 @@ export default defineConfig({
   test: {
     projects: [
       {
-        test: { name: "unit", include: ["test/unit/**/*.test.ts"] },
+        // Several unit files build the whole app or open real sockets; under a full parallel
+        // `pnpm check` the 5 s default has timed out on a busy machine.
+        test: { name: "unit", include: ["test/unit/**/*.test.ts"], testTimeout: 20_000 },
       },
       {
         // Needs Docker (testcontainers starts Postgres 16 + Redis 7).

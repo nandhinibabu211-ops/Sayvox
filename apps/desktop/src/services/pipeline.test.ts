@@ -4,8 +4,7 @@ import type { OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
 import type { ModePrefs } from "./modeResolver";
 import { DictationPipeline, type InsertOutcome, type ScribeLike } from "./pipeline";
-import { RewriteFailed, type RewriteDone } from "./rewriteClient";
-import { ScribeError } from "./scribeClient";
+import { RewriteFailed, ScribeError, type RewriteDone } from "@sayvox/client";
 
 const SESSION: SessionStartResponse = {
   sessionId: "3f1c2a4e-8b7d-4c1a-9e2f-1a2b3c4d5e6f",

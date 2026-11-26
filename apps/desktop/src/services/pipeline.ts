@@ -8,11 +8,9 @@ import type {
 import { ReviewGate, type ReviewDecision } from "../overlay/review";
 import { errorFor, type OverlayState } from "../overlay/state";
 import { ApiError } from "./apiClient";
-import { cleanup } from "./cleanup";
+import { cleanup, ScribeError } from "@sayvox/client";
+import type { CommitResult, RewriteDone, ScribeStreamOptions } from "@sayvox/client";
 import { DEFAULT_PREFS, nextMode, resolveMode, type ModePrefs } from "./modeResolver";
-import type { RewriteDone } from "./rewriteClient";
-import type { CommitResult, ScribeStreamOptions } from "./scribeClient";
-import { ScribeError } from "./scribeClient";
 import { SessionExpiredError } from "./session";
 
 /** Messages from Rust over the dictation channel (src-tauri/src/dictation.rs). */

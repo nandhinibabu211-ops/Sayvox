@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sayvox/client": "workspace:*",
+    "@sayvox/shared": "workspace:*",
     "firebase": "13.4.0"
   },
   "devDependencies": {

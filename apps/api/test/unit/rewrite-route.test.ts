@@ -197,6 +197,19 @@ describe("POST /v1/rewrite (T042, contracts/rewrite-sse.md)", () => {
     await app.close();
   });
 
+  it("keeps CORS headers on the SSE stream for the desktop webview", async () => {
+    const app = makeApp();
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/rewrite",
+      headers: { authorization: "Bearer u1", origin: "http://tauri.localhost" },
+      payload: body(),
+    });
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://tauri.localhost");
+    await app.close();
+  });
+
   it("refuses another rewrite once the session's cap is used, before calling a model", async () => {
     const app = makeApp();
     claimAllowed = false;

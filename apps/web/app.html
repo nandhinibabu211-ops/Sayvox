@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Sayvox in your browser</title>
+    <meta
+      name="description"
+      content="Try Sayvox in the browser: hold to talk, get clean text or a structured prompt, copy it."
+    />
+    <link rel="stylesheet" href="/src/legal.css" />
+    <link rel="stylesheet" href="/src/app.css" />
+  </head>
+  <body>
+    <main class="doc webapp">
+      <header class="bar">
+        <a class="brand" href="/">Sayvox</a>
+        <span id="who" class="hint"></span>
+        <button id="signout" type="button" class="link" hidden>Sign out</button>
+      </header>
+
+      <section id="signin-view" class="card">
+        <h1>Try Sayvox in your browser</h1>
+        <p class="hint">
+          Sign in with your Sayvox email and password (create one on the
+          <a href="/signin">sign-in page</a>). On Windows, the desktop app types straight into any
+          app; here you copy the result.
+        </p>
+        <form id="signin-form">
+          <label>Email <input id="email" type="email" autocomplete="email" required /></label>
+          <label
+            >Password
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              minlength="8"
+              required
+          /></label>
+          <button type="submit" class="primary">Sign in</button>
+        </form>
+      </section>
+
+      <section id="app-view" hidden>
+        <div class="modes" role="radiogroup" aria-label="Mode">
+          <label><input type="radio" name="mode" value="dictation" checked /> Dictation</label>
+          <label><input type="radio" name="mode" value="prompt" /> Prompt</label>
+          <label><input type="radio" name="mode" value="email" /> Email</label>
+        </div>
+
+        <button id="talk" type="button" class="talk" aria-describedby="talk-hint">
+          Hold to talk
+        </button>
+        <p id="talk-hint" class="hint">
+          Press and hold the button (or the Space bar), speak, then let go.
+        </p>
+
+        <p id="live" class="live" aria-live="polite"></p>
+
+        <label class="out-label" for="out">Result</label>
+        <textarea id="out" rows="8" placeholder="Your text appears here."></textarea>
+        <div class="row">
+          <button id="copy" type="button" class="primary">Copy</button>
+          <span id="meta" class="hint"></span>
+        </div>
+
+        <section class="usage" aria-label="Usage">
+          <h2>Usage</h2>
+          <p id="usage" class="hint">Loading…</p>
+        </section>
+      </section>
+
+      <p id="status" role="status" aria-live="polite"></p>
+      <p class="footer"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+    </main>
+    <!-- Runtime config from the server (nginx.conf.template); absent in vite dev. -->
+    <script src="/config.js"></script>
+    <script type="module" src="/src/app.ts"></script>
+  </body>
+</html>
