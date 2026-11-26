@@ -77,7 +77,9 @@ How it was created (repeat in this order for a rebuild):
    `gcloud run jobs execute sayvox-staging-migrate --wait`, smoke test.
 
 **Sign-in (2026-11-26, Google Cloud, no Firebase):**
-- Identity Platform initialized on the project; **email/password** enabled. Authorized
+- Identity Platform initialized on the project; **email/password** enabled (any address,
+  Gmail included), password policy **enforced: 8–100 characters** (2026-11-26), email
+  enumeration protection on, "Forgot password?" sends Identity Platform's reset email. Authorized
   domains: the staging web origin, `sayvox-app-2026.firebaseapp.com` (Identity Platform's
   auth handler) and `localhost`.
 - Browser API key "Sayvox sign-in (browser, staging)", restricted to Identity Toolkit and
