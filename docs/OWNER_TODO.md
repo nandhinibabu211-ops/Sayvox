@@ -9,11 +9,10 @@ this order; each line says where the detailed steps are.
    Then tell Claude: it sets `provider_keys_ready = true`, re-applies, and tests dictation.
 2. **Set provider spend caps**: OpenRouter key credit limit; ElevenLabs usage-based billing
    limit. Write the amounts in `docs/runbooks/kill-switch.md` "Cost".
-3. **Updater signing key**: generated, public key is in `tauri.conf.json` (2026-11-26). Still
-   to do: add the private key file's contents and its password as GitHub repository secrets
-   `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, keep an offline backup,
-   and create the `release-updates` environment with yourself as required reviewer
-   (`docs/runbooks/release.md` steps 1–3).
+3. **Updater signing key**: done 2026-11-26 (public key in `tauri.conf.json`, GitHub secrets
+   `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`, `release-updates` approval environment). Keep an
+   offline backup of the private key file; Actions → "Check updater signing key" re-checks the
+   secrets at any time.
 4. **Test on Windows 10 and Windows 11**: GitHub → Actions → "Staging test installer" →
    Run workflow, download the artifact, install, follow `specs/001-voice-to-prompt-mvp/quickstart.md`
    section 3 (after step 1, so dictation works).
