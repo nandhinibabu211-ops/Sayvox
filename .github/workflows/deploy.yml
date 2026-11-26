@@ -77,8 +77,10 @@ jobs:
 
       - name: Deploy
         run: |
-          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" \
-            --container=api --image="${{ steps.image.outputs.image }}" --quiet
+          # Service-level flags first: gcloud applies every flag after --container to that
+          # container (and rejects --quiet, --no-traffic, --tag there).
+          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" --quiet \
+            --container=api --image="${{ steps.image.outputs.image }}"
 
       - name: Deploy web pages
         run: |
@@ -141,9 +143,9 @@ jobs:
       - name: Deploy the new revision without traffic
         id: new
         run: |
-          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" \
-            --container=api --image="${{ needs.staging.outputs.image }}" \
-            --no-traffic --tag candidate --quiet
+          gcloud run services update "${{ vars.API_SERVICE }}" --region="$REGION" --quiet \
+            --no-traffic --tag=candidate \
+            --container=api --image="${{ needs.staging.outputs.image }}"
           NEW=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region="$REGION" \
             --format='value(status.latestCreatedRevisionName)')
           URL=$(gcloud run services describe "${{ vars.API_SERVICE }}" --region="$REGION" --format=json \
