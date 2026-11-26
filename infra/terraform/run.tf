@@ -12,6 +12,7 @@ locals {
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
     RAZORPAY_PLAN_IDS           = var.razorpay_plan_ids
     DB_CONNECT_TIMEOUT_MS       = tostring(var.db_connect_timeout_ms)
+    STT_PROVIDER                = var.stt_provider
     # The web app (web.tf) calls the API from the browser; the desktop webview origins are
     # built in (apps/api/src/plugins/cors.ts).
     CORS_ORIGINS = "https://${local.name}-web-${data.google_project.this.number}.${var.region}.run.app"
@@ -27,10 +28,11 @@ locals {
     spend     = ["DATABASE_URL"]
   }
   # Owner-provided secrets are mounted only once they have a version (Cloud Run refuses a
-  # revision whose secret has none): provider_keys_ready = false runs the API without them.
+  # revision whose secret has none): provider_keys lists the ones that have a value.
+  provider_key_names = ["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY"]
   mounted_secrets = {
     for k, v in local.all_secrets : k => v
-    if var.provider_keys_ready || !contains(keys(local.owner_secrets), k)
+    if !contains(local.provider_key_names, k) || contains(var.provider_keys, k)
   }
   job_args = {
     cfg       = ["src/scripts/cfg.ts", "get"]

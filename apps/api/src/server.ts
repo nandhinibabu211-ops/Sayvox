@@ -9,7 +9,9 @@ import { createUserResolver } from "./modules/auth/users";
 import { createIdentityDeleter } from "./modules/account/identity";
 import { keys } from "./lib/redis/keys";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
-import { createScribeTokenMinter } from "./lib/elevenlabs/token";
+import { createScribeTokenMinter, SCRIBE_TOKEN_TTL_MS } from "./lib/elevenlabs/token";
+import { createTranscriber } from "./lib/openrouter/transcribe";
+import { openRouterUpstream } from "./modules/stream/upstream";
 import { startSweeper } from "./modules/session/sweeper";
 import { claimRewrite } from "./modules/limits/store";
 import { createAudioCharger } from "./modules/stream/charge";
@@ -88,7 +90,12 @@ const app = buildApp({
     redis,
     config,
     region: env.REGION,
-    mintToken: createScribeTokenMinter({ apiKey: env.ELEVENLABS_API_KEY }),
+    // OpenRouter speech-to-text needs no per-session provider token; the ticket still
+    // carries the session (stream/ticket.ts).
+    mintToken:
+      env.STT_PROVIDER === "openrouter"
+        ? async () => ({ token: "none", expiresAt: new Date(Date.now() + SCRIBE_TOKEN_TTL_MS) })
+        : createScribeTokenMinter({ apiKey: env.ELEVENLABS_API_KEY }),
   },
   rewrite: {
     store: createDbRewriteStore(database.db),
@@ -111,6 +118,18 @@ const app = buildApp({
   stream: {
     takeTicket: (ticket) => takeTicket(redis, ticket),
     charge: createAudioCharger(database.db, redis),
+    ...(env.STT_PROVIDER === "openrouter"
+      ? {
+          upstream: openRouterUpstream(
+            createTranscriber({
+              apiKey: env.OPENROUTER_API_KEY,
+              models: env.STT_MODELS,
+              fetchFn: pooledFetch,
+            }),
+            { partialEveryMs: env.STT_PARTIAL_EVERY_MS, partialModels: env.STT_MODELS.slice(0, 1) },
+          ),
+        }
+      : {}),
   },
   billing: {
     db: database.db,

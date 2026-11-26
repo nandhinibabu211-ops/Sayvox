@@ -29,13 +29,10 @@
           Audio is never saved to disk.
         </li>
         <li>
-          <strong>Audio → ElevenLabs</strong> (speech recognition). Audio streams from your PC
-          through Sayvox's servers to ElevenLabs, which sends back the text. Our servers only
-          measure how long the audio is, for your usage limits; they pass it on without saving or
-          logging it. ElevenLabs offers zero retention only on enterprise plans, which Sayvox does
-          not have yet, so
-          <strong>ElevenLabs may keep audio and transcripts under its own terms</strong>. We'll
-          update this page when that changes.
+          <strong>Audio → speech recognition through OpenRouter</strong>. Audio streams from your PC
+          through Sayvox's servers, which measure how long it is (for your usage limits) and send it
+          to a speech-recognition model through OpenRouter. Requests go only to providers with zero
+          data retention that don't train on your data. Sayvox doesn't save or log the audio.
         </li>
         <li>
           <strong>Text → an AI model through OpenRouter</strong> (Prompt and Email modes only). The
@@ -109,7 +106,10 @@
 
       <h2 id="processors">Services we use</h2>
       <ul>
-        <li><strong>ElevenLabs</strong>: speech recognition.</li>
+        <li>
+          <strong>OpenRouter</strong> and the model provider it routes to: speech recognition (zero
+          data retention).
+        </li>
         <li><strong>OpenRouter</strong> and the model provider it routes to: AI rewrites.</li>
         <li>
           <strong>Google Cloud</strong>: hosting, database, sign-in (Identity Platform), logging and

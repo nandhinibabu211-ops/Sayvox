@@ -17,12 +17,14 @@ export interface ChargeInput {
   seconds: number;
   keytermsUsed: boolean;
   at: Date;
+  /** Provider-reported cost (OpenRouter); otherwise the Scribe rate is used. */
+  costUsd?: number;
 }
 
 export type ChargeAudio = (c: ChargeInput) => Promise<void>;
 
 export function createAudioCharger(db: Db, redis: Redis): ChargeAudio {
-  return async ({ userId, sessionId, seconds, keytermsUsed, at }) => {
+  return async ({ userId, sessionId, seconds, keytermsUsed, at, costUsd }) => {
     const s = Math.round(Math.max(0, seconds) * 100) / 100;
     const charged = await db.transaction(async (tx) => {
       const updated = await tx
@@ -44,7 +46,7 @@ export function createAudioCharger(db: Db, redis: Redis): ChargeAudio {
             userId,
             day: at.toISOString().slice(0, 10),
             audioSeconds: s.toFixed(2),
-            sttCostUsd: sttCostUsd(s, keytermsUsed).toFixed(5),
+            sttCostUsd: (costUsd ?? sttCostUsd(s, keytermsUsed)).toFixed(5),
           })
           .onConflictDoUpdate({
             target: [usageDaily.userId, usageDaily.day],

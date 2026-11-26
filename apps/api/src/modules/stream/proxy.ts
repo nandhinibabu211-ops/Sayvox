@@ -6,10 +6,12 @@ import { scribeUpstreamUrl } from "../../lib/elevenlabs/realtime";
 import type { ChargeAudio } from "./charge";
 import { COMMIT_MESSAGE, parseAudioChunk } from "./meter";
 import type { StreamTicketData } from "./ticket";
+import { elevenLabsUpstream, type SttUpstream, type UpstreamFactory } from "./upstream";
 
 /**
- * `GET /v1/stream` (WebSocket): the desktop app's speech-to-text stream, proxied to
- * ElevenLabs Scribe so the API meters every second of audio itself (audit SEC-03).
+ * `GET /v1/stream` (WebSocket): the clients' speech-to-text stream, proxied to the
+ * configured speech-to-text upstream (ElevenLabs Scribe or OpenRouter, upstream.ts) so the
+ * API meters every second of audio itself (audit SEC-03).
  *
  * - Auth: subprotocols `["sayvox.stream.v1", <ticket>]` from /v1/session/start. The ticket
  *   is in a header, never the URL (which Cloud Run logs), and works exactly once.
@@ -26,6 +28,8 @@ export const STREAM_PROTOCOL = "sayvox.stream.v1";
 export interface StreamDeps {
   takeTicket: (ticket: string) => Promise<StreamTicketData | null>;
   charge: ChargeAudio;
+  /** Speech-to-text upstream; default ElevenLabs Scribe realtime at `upstreamUrl`. */
+  upstream?: UpstreamFactory;
   /** Upstream Scribe URL for a ticket (tests point it at a mock server). */
   upstreamUrl?: (t: StreamTicketData) => string;
   /** Close a stream that sends nothing for this long (default 30 s). */
@@ -39,19 +43,19 @@ function reject(socket: Duplex, status: 400 | 401 | 503): void {
   socket.destroy();
 }
 
-/** Close codes a server may send on to the client (1006 etc. are reserved). */
-const passCode = (code: number) => (code === 1000 || (code >= 3000 && code <= 4999) ? code : 1011);
-
 export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): void {
   const now = deps.now ?? (() => new Date());
-  const upstreamUrl =
-    deps.upstreamUrl ??
-    ((t: StreamTicketData) =>
-      scribeUpstreamUrl({
-        token: t.scribeToken,
-        keyterms: t.keyterms,
-        languageHint: t.languageHint,
-      }));
+  const makeUpstream =
+    deps.upstream ??
+    elevenLabsUpstream(
+      deps.upstreamUrl ??
+        ((t: StreamTicketData) =>
+          scribeUpstreamUrl({
+            token: t.scribeToken,
+            keyterms: t.keyterms,
+            languageHint: t.languageHint,
+          })),
+    );
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: 512 * 1024,
@@ -67,39 +71,29 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
     let seconds = 0;
     let capped = false;
     let finished = false;
-    const queue: string[] = [];
-    const upstream = new WebSocket(upstreamUrl(t), { handshakeTimeout: 5_000 });
-
-    const sendUp = (msg: string) => {
-      if (upstream.readyState === WebSocket.OPEN) upstream.send(msg);
-      else if (upstream.readyState === WebSocket.CONNECTING) queue.push(msg);
-    };
+    // `upstream` is created below; these only run later (on messages, timers, close).
+    const sendUp = (msg: string) => upstream.send(msg);
 
     let idle: NodeJS.Timeout | undefined;
     const touch = () => {
       if (idle) clearTimeout(idle);
-      idle = setTimeout(() => finish(1000, 1000), deps.idleMs ?? 30_000);
+      idle = setTimeout(() => finish(1000), deps.idleMs ?? 30_000);
     };
     // Hard stop: the cap plus slack for the commit round trip.
-    const hard = setTimeout(() => finish(1000, 1000), t.maxSessionSeconds * 1000 + 60_000);
+    const hard = setTimeout(() => finish(1000), t.maxSessionSeconds * 1000 + 60_000);
     touch();
-    const stop = () => finish(1001, 1000);
+    const stop = () => finish(1001);
     active.add(stop);
 
-    function finish(clientCode: number, upstreamCode: number): void {
+    function finish(clientCode: number): void {
       if (finished) return;
       finished = true;
       active.delete(stop);
       if (idle) clearTimeout(idle);
       clearTimeout(hard);
-      queue.length = 0;
-      for (const [ws, code] of [
-        [client, clientCode],
-        [upstream, upstreamCode],
-      ] as const) {
-        if (ws.readyState === WebSocket.OPEN) ws.close(code);
-        else if (ws.readyState === WebSocket.CONNECTING) ws.terminate();
-      }
+      upstream.close();
+      if (client.readyState === WebSocket.OPEN) client.close(clientCode);
+      else if (client.readyState === WebSocket.CONNECTING) client.terminate();
       app.log.info(
         { sessionId: t.sessionId, audioSeconds: Math.round(seconds * 100) / 100, capped },
         "stream ended",
@@ -111,6 +105,7 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
           seconds,
           keytermsUsed: t.keytermsUsed,
           at: now(),
+          ...(upstream.costUsd ? { costUsd: upstream.costUsd() } : {}),
         })
         .catch((err: unknown) =>
           app.log.error(
@@ -122,24 +117,19 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       pending.add(charging);
     }
 
-    upstream.on("open", () => {
-      for (const m of queue) upstream.send(m);
-      queue.length = 0;
+    const upstream: SttUpstream = makeUpstream(t, {
+      message: (text) => {
+        if (client.readyState === WebSocket.OPEN) client.send(text);
+      },
+      close: (code) => finish(code),
     });
-    upstream.on("message", (data: RawData, isBinary: boolean) => {
-      if (client.readyState !== WebSocket.OPEN) return;
-      client.send(isBinary ? data : data.toString());
-    });
-    upstream.on("close", (code: number) => finish(passCode(code), 1000));
-    upstream.on("error", () => finish(1011, 1000));
-    upstream.on("unexpected-response", () => finish(1011, 1000));
 
     client.on("message", (data: RawData, isBinary: boolean) => {
       if (finished) return;
       const raw = isBinary ? null : data.toString();
       const chunk = raw === null ? null : parseAudioChunk(raw);
       if (!chunk || raw === null) {
-        finish(1008, 1000);
+        finish(1008);
         return;
       }
       touch();
@@ -153,8 +143,8 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       seconds += chunk.seconds;
       sendUp(raw);
     });
-    client.on("close", () => finish(1000, 1000));
-    client.on("error", () => finish(1011, 1000));
+    client.on("close", () => finish(1000));
+    client.on("error", () => finish(1011));
   }
 
   const onUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {

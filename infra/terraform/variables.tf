@@ -88,10 +88,24 @@ variable "redis_tier" {
   default     = "BASIC"
 }
 
-variable "provider_keys_ready" {
-  description = "Mount the ElevenLabs/OpenRouter secrets. Add their versions first; false runs the API without them (dictation answers 503)."
-  type        = bool
-  default     = true
+variable "provider_keys" {
+  description = "Provider key secrets that already have a version, so Cloud Run can mount them (a secret without one blocks the revision). Missing keys: the feature answers 503."
+  type        = list(string)
+  default     = ["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY"]
+  validation {
+    condition     = alltrue([for k in var.provider_keys : contains(["ELEVENLABS_API_KEY", "OPENROUTER_API_KEY"], k)])
+    error_message = "provider_keys may list ELEVENLABS_API_KEY and OPENROUTER_API_KEY."
+  }
+}
+
+variable "stt_provider" {
+  description = "Speech-to-text behind /v1/stream: elevenlabs (Scribe realtime) or openrouter (transcription endpoint, ADR-012)."
+  type        = string
+  default     = "elevenlabs"
+  validation {
+    condition     = contains(["elevenlabs", "openrouter"], var.stt_provider)
+    error_message = "stt_provider must be elevenlabs or openrouter."
+  }
 }
 
 variable "billing_enabled" {
