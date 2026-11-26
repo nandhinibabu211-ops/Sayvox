@@ -50,7 +50,7 @@
       }
     },
     "updater": {
-      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM1OUFFQUU0QjAxODc5NDAKUldSQWVSaXc1T3FhTlNrOGZtc29SRVFOR25hZC9aZ2JMUjRPUFl6MVNiK1B3Q05UN043ekN2cDEK",
       "endpoints": ["https://storage.googleapis.com/sayvox-app-2026-releases/updates/latest.json"],
       "windows": {
         "installMode": "passive"
