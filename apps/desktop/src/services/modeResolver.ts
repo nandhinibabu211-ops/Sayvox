@@ -48,7 +48,7 @@ export function resolveMode(appId: string, prefs: ModePrefs = DEFAULT_PREFS): Mo
   return prefs.overrides[id] ?? BUILT_IN_MODES[id] ?? prefs.defaultMode;
 }
 
-const CYCLE: readonly Mode[] = ["dictation", "prompt", "email"];
+const CYCLE: readonly Mode[] = ["dictation", "prompt", "email", "translate"];
 
 /** Overlay badge click: next mode, for this press only. */
 export function nextMode(m: Mode): Mode {

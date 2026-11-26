@@ -6,7 +6,7 @@ import {
   streamRewrite,
   streamUrl,
 } from "@sayvox/client";
-import type { Mode, SessionStartResponse, UsageResponse } from "@sayvox/shared";
+import type { Mode, SessionStartResponse, SettingsResponse, UsageResponse } from "@sayvox/shared";
 import { initializeApp } from "firebase/app";
 import {
   initializeAuth,
@@ -90,6 +90,7 @@ $<HTMLFormElement>("signin-form").addEventListener("submit", (e) => {
       showApp(true);
       show("");
       void refreshUsage();
+      void loadSettings();
     })
     .catch((err: unknown) => show(authErrorMessage((err as { code?: string }).code), true));
 });
@@ -101,6 +102,44 @@ $<HTMLButtonElement>("signout").addEventListener("click", () => {
     showApp(false);
     show("Signed out.");
   });
+});
+
+// ── Language (saved on the account, shared with the desktop app) ───────────
+
+const languageSelect = $<HTMLSelectElement>("language");
+let settings: SettingsResponse | null = null;
+
+async function loadSettings(): Promise<void> {
+  try {
+    settings = await apiJson<SettingsResponse>("/v1/settings");
+    languageSelect.value = settings.languageHint ?? "auto";
+  } catch (err) {
+    show(apiErrorMessage(err), true);
+  }
+}
+
+languageSelect.addEventListener("change", () => {
+  if (!settings) return;
+  const languageHint = languageSelect.value === "auto" ? null : languageSelect.value;
+  // PUT takes the settings fields only (no plan).
+  const body = {
+    preset: settings.preset,
+    defaultMode: settings.defaultMode,
+    appModeOverrides: settings.appModeOverrides,
+    insertMode: settings.insertMode,
+    languageHint,
+    hotkey: settings.hotkey,
+    translateHotkey: settings.translateHotkey,
+  };
+  apiJson<SettingsResponse>("/v1/settings", { method: "PUT", body: JSON.stringify(body) })
+    .then((s) => {
+      settings = s;
+      show("Language saved. It applies to your next dictation, here and in the desktop app.");
+    })
+    .catch((err: unknown) => {
+      languageSelect.value = settings?.languageHint ?? "auto";
+      show(apiErrorMessage(err), true);
+    });
 });
 
 // ── Usage ───────────────────────────────────────────────────────────────

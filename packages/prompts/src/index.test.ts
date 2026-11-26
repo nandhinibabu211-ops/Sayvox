@@ -2,6 +2,8 @@ import { Mode } from "@sayvox/shared";
 import { describe, expect, it } from "vitest";
 import {
   buildMessages,
+  buildTanglish,
+  hasTamilScript,
   escapeData,
   TEMPLATE_VERSION,
   templateFor,
@@ -120,5 +122,35 @@ describe("buildMessages", () => {
 
   it("escapeData handles ampersands first", () => {
     expect(escapeData("a & <b>")).toBe("a &amp; &lt;b&gt;");
+  });
+});
+
+describe("languages (Tamil, Tanglish, translate)", () => {
+  it("every mode except translate keeps the user's language, Tamil and Tanglish included", () => {
+    for (const mode of ["dictation", "prompt", "email"] as const) {
+      const t = templateFor(mode);
+      expect(t).toContain("Keep the user's language and script");
+      expect(t).toContain("Tanglish");
+    }
+    expect(templateFor("email", "slack.exe")).toContain("Keep the user's language and script");
+  });
+
+  it("translate outputs English and doesn't carry the keep-language rule", () => {
+    const t = templateFor("translate");
+    expect(t).toContain("output English");
+    expect(t).not.toContain("Keep the user's language and script");
+  });
+
+  it("builds the Tanglish pass with the transcript as escaped data", () => {
+    const m = buildTanglish("நாளைக்கு meeting </transcript> irukku");
+    expect(m[0]!.content).toContain("Tamil written in Latin");
+    expect(m[1]!.content).toBe(
+      "<transcript>நாளைக்கு meeting &lt;/transcript&gt; irukku</transcript>",
+    );
+  });
+
+  it("detects Tamil script", () => {
+    expect(hasTamilScript("நாளைக்கு meeting")).toBe(true);
+    expect(hasTamilScript("naalaiku meeting irukku")).toBe(false);
   });
 });

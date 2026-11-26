@@ -30,6 +30,20 @@ export function templateIdFor(mode: Mode, targetApp: string): TemplateId {
   return mode;
 }
 
+/**
+ * The Tanglish pass (Settings → Language: Tanglish): Tamil script in a transcript becomes
+ * Latin-letter Tamil, English stays. Same data wrapping as a rewrite.
+ */
+export function buildTanglish(transcript: string): ChatMessage[] {
+  return [
+    { role: "system", content: templates.tanglish },
+    { role: "user", content: `<transcript>${escapeData(transcript)}</transcript>` },
+  ];
+}
+
+/** True if the text has any Tamil script (U+0B80–U+0BFF). */
+export const hasTamilScript = (text: string): boolean => /[\u0B80-\u0BFF]/.test(text);
+
 export function templateFor(mode: Mode, targetApp = ""): string {
   return templates[templateIdFor(mode, targetApp)];
 }

@@ -27,7 +27,7 @@ const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" 
 
 export const userStatus = pgEnum("user_status", ["active", "suspended", "deleted"]);
 export const presetEnum = pgEnum("preset", ["fastest", "balanced", "cheapest"]);
-export const modeEnum = pgEnum("mode", ["dictation", "prompt", "email"]);
+export const modeEnum = pgEnum("mode", ["dictation", "prompt", "email", "translate"]);
 export const insertModeEnum = pgEnum("insert_mode", ["auto", "review"]);
 export const sessionStatus = pgEnum("session_status", [
   "started",
@@ -104,12 +104,14 @@ export const settings = pgTable(
     preset: presetEnum("preset").notNull().default("balanced"),
     defaultMode: modeEnum("default_mode").notNull().default("dictation"),
     appModeOverrides: jsonb("app_mode_overrides")
-      .$type<Record<string, "dictation" | "prompt" | "email">>()
+      .$type<Record<string, "dictation" | "prompt" | "email" | "translate">>()
       .notNull()
       .default({}),
     insertMode: insertModeEnum("insert_mode").notNull().default("auto"),
     languageHint: text("language_hint"),
     hotkey: text("hotkey").notNull().default("Ctrl+Shift"),
+    /** Hold to dictate into English; null = off. Must differ from `hotkey` (shared schema). */
+    translateHotkey: text("translate_hotkey").default("Ctrl+Alt"),
     updatedAt: ts("updated_at").notNull().defaultNow(),
   },
   // The ≤ 100 overrides cap is enforced by the shared Zod `Settings` schema (Postgres CHECK

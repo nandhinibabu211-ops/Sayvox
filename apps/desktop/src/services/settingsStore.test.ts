@@ -15,6 +15,7 @@ const BASE: SettingsResponse = {
   insertMode: "auto",
   languageHint: null,
   hotkey: "Ctrl+Shift",
+  translateHotkey: "Ctrl+Alt",
   plan: { id: "free", allowedPresets: ["balanced", "cheapest"], dictionaryLimit: 25 },
 };
 
@@ -40,7 +41,7 @@ function fakeApi(opts: { reject?: (s: Settings) => boolean } = {}) {
       puts.push(s);
       if (api.hold) await new Promise<void>((r) => release.push(r));
       if (opts.reject?.(s)) throw new ApiError(403, "FORBIDDEN", "Not in your plan");
-      server = { ...s, plan: server.plan };
+      server = { ...s, translateHotkey: s.translateHotkey ?? null, plan: server.plan };
       return server;
     },
   };
@@ -49,7 +50,7 @@ function fakeApi(opts: { reject?: (s: Settings) => boolean } = {}) {
 
 describe("SettingsStore (Story 2.6 AC 2)", () => {
   it("starts from the cache, then hydrates from the server", async () => {
-    const cached = { ...BASE, hotkey: "Ctrl+Alt" };
+    const cached = { ...BASE, hotkey: "Ctrl+Alt", translateHotkey: "Alt+Shift" };
     const storage = memory({ [SETTINGS_CACHE_KEY]: JSON.stringify(cached) });
     const store = new SettingsStore(fakeApi(), storage);
     expect(store.current?.hotkey).toBe("Ctrl+Alt");
@@ -109,5 +110,23 @@ describe("SettingsStore (Story 2.6 AC 2)", () => {
   it("refuses updates before anything is loaded", async () => {
     const store = new SettingsStore(fakeApi(), memory());
     await expect(store.update({ insertMode: "review" })).rejects.toThrow("not loaded");
+  });
+});
+
+describe("translate shortcut setting", () => {
+  it("is sent on save, and a cache with clashing shortcuts is ignored", async () => {
+    const api = fakeApi();
+    const store = new SettingsStore(api, memory({}));
+    await store.load();
+    await store.update({ translateHotkey: "Alt+Shift" });
+    expect(api.puts.at(-1)?.translateHotkey).toBe("Alt+Shift");
+    const clash = memory({
+      [SETTINGS_CACHE_KEY]: JSON.stringify({
+        ...BASE,
+        hotkey: "Ctrl+Alt",
+        translateHotkey: "Ctrl+Alt",
+      }),
+    });
+    expect(new SettingsStore(fakeApi(), clash).current).toBeNull();
   });
 });

@@ -34,6 +34,11 @@ pub enum KeyEvent {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum HotkeyEvent {
     Press,
+    /// The translate chord (Settings → General, default Ctrl+Alt) was held: same as `Press`,
+    /// but this dictation comes out in English. Emitted by the hook for its second chord
+    /// machine; its release and cancel are the ordinary `Release` / `Cancel` (only one chord
+    /// can be held at a time, because each needs exactly its own keys).
+    PressTranslate,
     Release {
         held_ms: u64,
     },
@@ -365,5 +370,26 @@ mod tests {
         let mut s = m();
         s.on_key(Down(CONTROL), 0);
         assert_eq!(s.on_key(Down(SHIFT), 0), Some(HotkeyEvent::Press));
+    }
+
+    /// The Windows hook runs the dictation and translate chords side by side.
+    #[test]
+    fn dictation_and_translate_chords_never_both_fire() {
+        let mut dictate = ChordMachine::with_binding(T, Binding::DEFAULT); // Ctrl+Shift
+        let mut translate = ChordMachine::with_binding(T, Binding::parse("Ctrl+Alt").unwrap());
+        let mut both = |k| (dictate.on_key(k, 0), translate.on_key(k, 0));
+
+        // Ctrl+Alt: only the translate machine presses.
+        assert_eq!(both(Down(LCONTROL)), (None, None));
+        assert_eq!(both(Down(LMENU)), (None, Some(HotkeyEvent::Press)));
+        // Adding Shift turns it into another shortcut: translate cancels, dictation stays idle.
+        assert_eq!(both(Down(LSHIFT)), (None, Some(HotkeyEvent::Cancel)));
+        assert_eq!(both(Up(LSHIFT)), (None, None));
+        assert_eq!(both(Up(LMENU)), (None, None));
+        assert_eq!(both(Up(LCONTROL)), (None, None));
+
+        // Ctrl+Shift: only the dictation machine presses.
+        assert_eq!(both(Down(LCONTROL)), (None, None));
+        assert_eq!(both(Down(LSHIFT)), (Some(HotkeyEvent::Press), None));
     }
 }

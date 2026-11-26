@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
  * Server-side only (reads files with node:fs); the desktop app never imports this.
  */
 
-export type TemplateId = "dictation" | "prompt" | "email" | "chat";
+export type TemplateId = "dictation" | "prompt" | "email" | "chat" | "translate" | "tanglish";
 
 function load(name: string): string {
   return readFileSync(new URL(`./templates/${name}.md`, import.meta.url), "utf8")
@@ -18,10 +18,16 @@ function load(name: string): string {
 }
 
 const SHARED_RULES = load("shared-rules");
+/** Every mode except translate (whose job is changing the language) and the Tanglish pass. */
+const KEEP_LANGUAGE = load("keep-language");
+const keep = (name: string) => `${load(name)}\n\n${SHARED_RULES}\n${KEEP_LANGUAGE}`;
 
 export const templates: Readonly<Record<TemplateId, string>> = Object.freeze({
-  dictation: `${load("dictation")}\n\n${SHARED_RULES}`,
-  prompt: `${load("prompt")}\n\n${SHARED_RULES}`,
-  email: `${load("email")}\n\n${SHARED_RULES}`,
-  chat: `${load("chat")}\n\n${SHARED_RULES}`,
+  dictation: keep("dictation"),
+  prompt: keep("prompt"),
+  email: keep("email"),
+  chat: keep("chat"),
+  translate: `${load("translate")}\n\n${SHARED_RULES}`,
+  /** Not a mode: the Tanglish script pass on speech-to-text output (languageHint tanglish). */
+  tanglish: `${load("tanglish")}\n\n${SHARED_RULES}`,
 });

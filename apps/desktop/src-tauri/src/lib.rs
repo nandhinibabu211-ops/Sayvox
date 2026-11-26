@@ -127,6 +127,7 @@ pub fn run() {
             dictation::copy_text,
             dictation::timing_append,
             dictation::set_hotkey,
+            dictation::set_translate_hotkey,
             dictation::hotkey_suspend,
             dictation::review_keys,
             overlay::overlay_hide,

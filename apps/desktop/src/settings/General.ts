@@ -17,6 +17,16 @@ import {
 
 /** Settings → General (T067): hotkey, insert behaviour, language, reply context, mic. */
 export function mountGeneral(root: HTMLElement, ctx: SettingsContext): void {
+  // ── Translate hotkey: hold to dictate into English ──
+  const translateSelect = select(
+    [
+      { value: "off", label: "Off" },
+      ...HOTKEY_OPTIONS.map((o) => ({ value: o, label: hotkeyLabel(o) })),
+    ],
+    { id: "translate-hotkey" },
+    (v) => save(ctx, { translateHotkey: v === "off" ? null : (v as Hotkey) }),
+  );
+
   // ── Hotkey ──
   const current = h("kbd", { class: "hotkey" });
   const recordBtn = h("button", { type: "button" }, "Change");
@@ -119,6 +129,18 @@ export function mountGeneral(root: HTMLElement, ctx: SettingsContext): void {
     h(
       "section",
       {},
+      h("h3", {}, h("label", { for: "translate-hotkey" }, "Speak any language, type English")),
+      translateSelect,
+      h(
+        "p",
+        { class: "hint" },
+        "Hold this shortcut instead to dictate in Tamil, Tanglish or any language and get English " +
+          "text. It must differ from the hold-to-talk hotkey.",
+      ),
+    ),
+    h(
+      "section",
+      {},
       h("h3", {}, "After an AI rewrite"),
       h("label", { class: "check" }, radios[0]!, "Insert right away"),
       h(
@@ -133,7 +155,13 @@ export function mountGeneral(root: HTMLElement, ctx: SettingsContext): void {
       {},
       h("h3", {}, h("label", { for: "language" }, "Language")),
       language,
-      h("p", { class: "hint" }, "Hinglish lets you mix Hindi and English in one sentence."),
+      h(
+        "p",
+        { class: "hint" },
+        "Auto-detect writes each dictation in the language you speak. Tamil writes Tamil script; " +
+          "Tanglish writes Tamil in English letters and keeps English words, the way you'd type " +
+          "in chat. Hinglish mixes Hindi and English.",
+      ),
     ),
     h(
       "section",
@@ -173,6 +201,9 @@ export function mountGeneral(root: HTMLElement, ctx: SettingsContext): void {
   const render = (s: SettingsResponse) => {
     current.textContent = hotkeyLabel(s.hotkey);
     hotkeySelect.value = s.hotkey satisfies Hotkey;
+    translateSelect.value = s.translateHotkey ?? "off";
+    // The same chord can't do both jobs: hide the dictation one from the translate list.
+    for (const o of translateSelect.options) o.disabled = o.value === s.hotkey;
     for (const r of radios) r.checked = r.value === s.insertMode;
     language.value = languageValue(s);
   };

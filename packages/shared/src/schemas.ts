@@ -5,7 +5,11 @@ import { z } from "zod";
  * Keep the two in sync: the OpenAPI file is the contract, these are its runtime form.
  */
 
-export const Mode = z.enum(["dictation", "prompt", "email"]);
+/**
+ * dictation: your words, cleaned. prompt: a structured AI prompt. email: a message.
+ * translate: whatever you said, in English (the translate shortcut, default Ctrl+Alt).
+ */
+export const Mode = z.enum(["dictation", "prompt", "email", "translate"]);
 export type Mode = z.infer<typeof Mode>;
 
 export const Preset = z.enum(["fastest", "balanced", "cheapest"]);
@@ -100,12 +104,15 @@ export const HOTKEY_OPTIONS = [
 export const Hotkey = z.enum(HOTKEY_OPTIONS);
 export type Hotkey = z.infer<typeof Hotkey>;
 
-/** Speech language hint (Settings → General). Mapped to Scribe params by the client. */
-export const LANGUAGE_HINTS = ["auto", "en", "en-IN", "hinglish"] as const;
+/**
+ * Speech language (Settings → General). auto: each clip in the language spoken. ta: Tamil
+ * script. tanglish: Tamil and English as people type them, Tamil in Latin letters.
+ */
+export const LANGUAGE_HINTS = ["auto", "en", "en-IN", "ta", "tanglish", "hinglish"] as const;
 export const LanguageHint = z.enum(LANGUAGE_HINTS);
 export type LanguageHint = z.infer<typeof LanguageHint>;
 
-export const Settings = z.object({
+const SettingsFields = z.object({
   preset: Preset,
   defaultMode: Mode,
   appModeOverrides: z
@@ -115,17 +122,32 @@ export const Settings = z.object({
   /** null = auto-detect. */
   languageHint: LanguageHint.nullable(),
   hotkey: Hotkey,
+  /**
+   * Hold to dictate straight into English (Mode "translate"); null = off. Optional on PUT
+   * (absent = keep), so clients that predate it keep working; always in responses.
+   */
+  translateHotkey: Hotkey.nullable().optional(),
 });
+const distinctHotkeys = (s: { hotkey: string; translateHotkey?: string | null | undefined }) =>
+  s.translateHotkey !== s.hotkey;
+const DISTINCT = {
+  message: "The translate shortcut must differ from the dictation shortcut",
+  path: ["translateHotkey"],
+};
+
+// Refinements live on the final schemas (Zod 4 can't .extend() a refined object).
+export const Settings = SettingsFields.refine(distinctHotkeys, DISTINCT);
 export type Settings = z.infer<typeof Settings>;
 
 /** GET/PUT /v1/settings response: the settings plus what the user's plan allows. */
-export const SettingsResponse = Settings.extend({
+export const SettingsResponse = SettingsFields.extend({
+  translateHotkey: Hotkey.nullable(),
   plan: z.object({
     id: z.string(),
     allowedPresets: z.array(Preset),
     dictionaryLimit: z.int(),
   }),
-});
+}).refine(distinctHotkeys, DISTINCT);
 export type SettingsResponse = z.infer<typeof SettingsResponse>;
 
 export const DictionaryTerm = z.object({

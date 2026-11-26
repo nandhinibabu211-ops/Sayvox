@@ -458,3 +458,11 @@ describe("DictationPipeline (US1)", () => {
     });
   });
 });
+
+describe("translate shortcut", () => {
+  it("sends the press to English whatever the app's mode", async () => {
+    const h = harness();
+    await h.p.onEvent({ kind: "press", t: 0, app: "notepad.exe", translate: true });
+    expect(h.states.at(-1)).toMatchObject({ kind: "listening", mode: "translate" });
+  });
+});

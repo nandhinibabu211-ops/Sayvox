@@ -57,8 +57,12 @@ function toSettings(s: SettingsResponse): Settings {
     insertMode: s.insertMode,
     languageHint: s.languageHint,
     hotkey: s.hotkey,
+    translateHotkey: s.translateHotkey,
   });
 }
+
+/** A change to some settings: the response's fields (translateHotkey is never undefined). */
+export type SettingsPatch = Partial<Omit<SettingsResponse, "plan">>;
 
 type Listener = (s: SettingsResponse) => void;
 
@@ -66,7 +70,7 @@ export class SettingsStore {
   /** Last state the server confirmed. */
   private confirmed: SettingsResponse | null;
   /** Optimistic changes not yet confirmed, oldest first. */
-  private pending: { patch: Partial<Settings> }[] = [];
+  private pending: { patch: SettingsPatch }[] = [];
   private chain: Promise<unknown> = Promise.resolve();
   private readonly listeners = new Set<Listener>();
 
@@ -109,7 +113,7 @@ export class SettingsStore {
    * Apply `patch` now; save it in order with earlier changes. On failure the change is
    * undone (later pending changes are kept) and the error is rethrown for the UI.
    */
-  update(patch: Partial<Settings>): Promise<SettingsResponse> {
+  update(patch: SettingsPatch): Promise<SettingsResponse> {
     if (!this.confirmed) return Promise.reject(new Error("Settings not loaded"));
     const entry = { patch };
     this.pending.push(entry);
