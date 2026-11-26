@@ -21,6 +21,14 @@ Sec-WebSocket-Protocol: sayvox.stream.v1, <streamTicket>
   forwarding at `maxSessionSeconds` (sending a commit instead), and charges the metered
   seconds to the user when the socket closes.
 
+## Upstream: OpenRouter instead (ADR-012, `STT_PROVIDER=openrouter`)
+The proxy answers in the same protocol without a WebSocket upstream: `session_started` at
+once; audio is buffered; every 2 s the audio so far is re-transcribed for
+`partial_transcript`; on commit the whole clip goes to `POST /api/v1/audio/transcriptions`
+(WAV, `STT_MODELS` in order) and comes back as `committed_transcript`. Empty audio →
+`insufficient_audio_activity`; refused key → `auth_error`; every model failed →
+`transcriber_error` (the client retries once on a new session).
+
 ## Connect (API proxy → ElevenLabs)
 ```
 wss://api.elevenlabs.io/v1/speech-to-text/realtime

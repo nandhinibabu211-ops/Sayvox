@@ -113,6 +113,14 @@ export const EnvSchema = z.object({
   RAZORPAY_TOTAL_COUNT: z.coerce.number().int().min(1).max(1200).default(120),
 
   ELEVENLABS_API_KEY: secret,
+  /**
+   * Speech-to-text behind /v1/stream (ADR-012): ElevenLabs Scribe realtime, or OpenRouter's
+   * transcription endpoint with STT_MODELS tried in order (fastest/cheapest first).
+   */
+  STT_PROVIDER: z.enum(["elevenlabs", "openrouter"]).default("elevenlabs"),
+  STT_MODELS: csv.default(["openai/whisper-large-v3-turbo", "elevenlabs/scribe-v2"]),
+  /** OpenRouter only: re-transcribe the audio so far this often for live text (0 = off). */
+  STT_PARTIAL_EVERY_MS: z.coerce.number().int().min(0).max(10_000).default(2_000),
   OPENROUTER_API_KEY: secret,
 });
 

@@ -49,7 +49,7 @@ observability.
 ## Staging as built (2026-11-25): cheap, serverless shape
 
 Owner decision: staging must be cheap. `staging.tfvars` uses `region = us-west1`,
-`database = alloydb_express`, `redis = vm`, `provider_keys_ready = false`. Cost is roughly
+`database = alloydb_express`, `redis = vm`, `stt_provider = openrouter` (ADR-012), `provider_keys = []`. Cost is roughly
 US$7–10/month (mostly the PSC endpoint); AlloyDB Express compute is free while paused and
 50 compute-hours/month are free for 12 months.
 
@@ -97,9 +97,10 @@ How it was created (repeat in this order for a rebuild):
   `gcloud services api-keys undelete`.
 
 **Still to do for staging:**
-- Provider keys (owner, later): add versions to `sayvox-staging-elevenlabs-api-key` and
-  `sayvox-staging-openrouter-api-key`, set `provider_keys_ready = true`, apply. Until then
-  `/v1/session/start` answers 503 `PROVIDER_UNAVAILABLE` and rewrites fail over to raw text.
+- Provider key (owner): add a version to `sayvox-staging-openrouter-api-key` (speech and
+  rewrites both use OpenRouter, ADR-012), then set `provider_keys = ["OPENROUTER_API_KEY"]`
+  and apply. Until then speech answers `transcriber_error` and rewrites fail over to raw text.
+  ElevenLabs is optional (only with `stt_provider = elevenlabs`).
 - GitHub `staging` environment variables are set and `DEPLOY_ENABLED=true` (2026-11-26):
   every merge to `main` that touches the API or web pages deploys **staging** automatically.
   The prod job is skipped until the repository variable `PROD_ENABLED=true`; set that only

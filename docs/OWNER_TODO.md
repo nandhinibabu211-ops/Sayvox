@@ -3,10 +3,11 @@
 Everything that can be done without these is done (as of 2026-11-26). Do them roughly in
 this order; each line says where the detailed steps are.
 
-1. **Add the staging API keys** (ElevenLabs, OpenRouter; low spend caps). In a terminal:
-   `gcloud secrets versions add sayvox-staging-elevenlabs-api-key --data-file=- --project sayvox-app-2026`
-   and the same for `sayvox-staging-openrouter-api-key` (paste, Enter, Ctrl+Z, Enter).
-   Then tell Claude: it sets `provider_keys_ready = true`, re-applies, and tests dictation.
+1. **Add the staging OpenRouter key** (low spend cap; it now covers speech *and* rewrites,
+   ElevenLabs isn't needed, ADR-012): Secret Manager → `sayvox-staging-openrouter-api-key` →
+   New version, or
+   `gcloud secrets versions add sayvox-staging-openrouter-api-key --data-file=- --project sayvox-app-2026`.
+   Then tell Claude: it mounts the key, re-applies, and tests dictation.
 2. **Set provider spend caps**: OpenRouter key credit limit; ElevenLabs usage-based billing
    limit. Write the amounts in `docs/runbooks/kill-switch.md` "Cost".
 3. **Updater signing key**: done 2026-11-26 (public key in `tauri.conf.json`, GitHub secrets

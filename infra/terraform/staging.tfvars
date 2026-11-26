@@ -8,7 +8,9 @@ max_instances         = 2
 database              = "alloydb_express"
 redis                 = "vm"
 db_connect_timeout_ms = 30000
-# Provider keys are added later (owner, 2026-11-25); set true after adding their versions.
-provider_keys_ready = false
+# Speech-to-text through OpenRouter (owner, 2026-11-26); list a provider key here only
+# after adding its secret version in Secret Manager.
+stt_provider  = "openrouter"
+provider_keys = []
 # Set after creating the AlloyDB Express instance (deploy.md "Staging database"):
 alloydb_psc_attachment = "projects/aeca1de70a693c723p-tp/regions/us-west1/serviceAttachments/alloydb-8402accf-5d0-aeca1de70a693c72-sa"
