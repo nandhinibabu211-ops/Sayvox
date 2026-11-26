@@ -11,6 +11,6 @@ db_connect_timeout_ms = 30000
 # Speech-to-text through OpenRouter (owner, 2026-11-26); list a provider key here only
 # after adding its secret version in Secret Manager.
 stt_provider  = "openrouter"
-provider_keys = []
+provider_keys = ["OPENROUTER_API_KEY"]
 # Set after creating the AlloyDB Express instance (deploy.md "Staging database"):
 alloydb_psc_attachment = "projects/aeca1de70a693c723p-tp/regions/us-west1/serviceAttachments/alloydb-8402accf-5d0-aeca1de70a693c72-sa"
