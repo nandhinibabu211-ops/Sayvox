@@ -37,9 +37,10 @@ describe("resolveMode (T045)", () => {
 });
 
 describe("nextMode", () => {
-  it("cycles dictation → prompt → email → dictation", () => {
+  it("cycles dictation → prompt → email → English → dictation", () => {
     expect(nextMode("dictation")).toBe("prompt");
     expect(nextMode("prompt")).toBe("email");
-    expect(nextMode("email")).toBe("dictation");
+    expect(nextMode("email")).toBe("translate");
+    expect(nextMode("translate")).toBe("dictation");
   });
 });

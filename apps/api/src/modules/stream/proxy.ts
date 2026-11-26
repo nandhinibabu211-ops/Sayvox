@@ -6,6 +6,7 @@ import { scribeUpstreamUrl } from "../../lib/elevenlabs/realtime";
 import type { ChargeAudio } from "./charge";
 import { COMMIT_MESSAGE, parseAudioChunk } from "./meter";
 import type { StreamTicketData } from "./ticket";
+import type { TranscriptPostprocess } from "./tanglish";
 import { elevenLabsUpstream, type SttUpstream, type UpstreamFactory } from "./upstream";
 
 /**
@@ -28,6 +29,8 @@ export const STREAM_PROTOCOL = "sayvox.stream.v1";
 export interface StreamDeps {
   takeTicket: (ticket: string) => Promise<StreamTicketData | null>;
   charge: ChargeAudio;
+  /** Applied to each committed transcript before the client sees it (the Tanglish pass). */
+  postprocess?: TranscriptPostprocess;
   /** Speech-to-text upstream; default ElevenLabs Scribe realtime at `upstreamUrl`. */
   upstream?: UpstreamFactory;
   /** Upstream Scribe URL for a ticket (tests point it at a mock server). */
@@ -117,9 +120,25 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       pending.add(charging);
     }
 
+    const toClient = (text: string) => {
+      if (client.readyState === WebSocket.OPEN) client.send(text);
+    };
     const upstream: SttUpstream = makeUpstream(t, {
       message: (text) => {
-        if (client.readyState === WebSocket.OPEN) client.send(text);
+        if (!deps.postprocess || !text.includes('"committed_transcript"')) return toClient(text);
+        let m: { message_type?: string; text?: unknown };
+        try {
+          m = JSON.parse(text) as typeof m;
+        } catch {
+          return toClient(text);
+        }
+        if (m.message_type !== "committed_transcript" || typeof m.text !== "string") {
+          return toClient(text);
+        }
+        void deps
+          .postprocess(m.text, t)
+          .catch(() => m.text as string)
+          .then((out) => toClient(JSON.stringify({ ...m, text: out })));
       },
       close: (code) => finish(code),
     });

@@ -1,0 +1,1 @@
+- Keep the user's language and script; do not translate. English stays English. Tamil in Tamil script stays Tamil script. Tamil written in Latin letters mixed with English (Tanglish, e.g. "naalaiku meeting irukku") stays Tanglish in Latin letters. Hindi mixed with English (Hinglish) stays Hinglish.

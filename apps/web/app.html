@@ -47,7 +47,19 @@
           <label><input type="radio" name="mode" value="dictation" checked /> Dictation</label>
           <label><input type="radio" name="mode" value="prompt" /> Prompt</label>
           <label><input type="radio" name="mode" value="email" /> Email</label>
+          <label><input type="radio" name="mode" value="translate" /> English (translate)</label>
         </div>
+        <label class="lang"
+          >Language I speak
+          <select id="language">
+            <option value="auto">Auto-detect (each clip in its own language)</option>
+            <option value="en">English</option>
+            <option value="en-IN">English (India)</option>
+            <option value="ta">Tamil (தமிழ் script)</option>
+            <option value="tanglish">Tanglish (Tamil in English letters + English)</option>
+            <option value="hinglish">Hinglish</option>
+          </select>
+        </label>
 
         <button id="talk" type="button" class="talk" aria-describedby="talk-hint">
           Hold to talk

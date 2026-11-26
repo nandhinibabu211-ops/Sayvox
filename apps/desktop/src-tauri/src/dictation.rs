@@ -30,6 +30,9 @@ pub enum DictationEvent {
     Press {
         t: u64,
         app: String,
+        /// The translate shortcut was held: this dictation comes out in English.
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        translate: bool,
     },
     /// Held long enough; mic stopped. Every chunk of this hold was sent before this event.
     #[serde(rename_all = "camelCase")]
@@ -110,12 +113,17 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
             let _ = state.outbound.send(Outbound::Event(e));
         };
         match ev {
-            HotkeyEvent::Press => {
+            HotkeyEvent::Press | HotkeyEvent::PressTranslate => {
+                let translate = ev == HotkeyEvent::PressTranslate;
                 state.audio.begin();
                 // Read the target app before the overlay appears.
                 let target = crate::active_app::foreground_app_id();
                 overlay::show(&app);
-                send(DictationEvent::Press { t, app: target });
+                send(DictationEvent::Press {
+                    t,
+                    app: target,
+                    translate,
+                });
                 if crate::selection::enabled() {
                     let outbound = state.outbound.clone();
                     std::thread::spawn(move || {
@@ -242,6 +250,33 @@ pub fn set_hotkey(
     if let Some(tray) = app.tray_by_id("sayvox") {
         let _ = tray.set_tooltip(Some(format!("Sayvox: hold {hotkey} to dictate")));
     }
+    Ok(())
+}
+
+/// Switch or turn off the translate chord (Settings → General). Must differ from the
+/// dictation chord.
+#[tauri::command]
+pub fn set_translate_hotkey(
+    state: State<'_, DictationState>,
+    hotkey: Option<String>,
+    dictation_hotkey: String,
+) -> Result<(), String> {
+    let binding = match hotkey.as_deref() {
+        None => None,
+        Some(h) => {
+            let b = crate::hotkey::Binding::parse(h)?;
+            if b == crate::hotkey::Binding::parse(&dictation_hotkey)? {
+                return Err(
+                    "the translate shortcut must differ from the dictation shortcut".into(),
+                );
+            }
+            Some(b)
+        }
+    };
+    #[cfg(windows)]
+    with_hook(&state, |h| h.set_translate_binding(binding));
+    #[cfg(not(windows))]
+    let _ = (&state, binding);
     Ok(())
 }
 
@@ -380,5 +415,23 @@ mod tests {
         assert_eq!(e, r#"{"kind":"audioError","code":"permissionDenied"}"#);
         let r = serde_json::to_string(&DictationEvent::Review { accept: true }).unwrap();
         assert_eq!(r, r#"{"kind":"review","accept":true}"#);
+        // `translate` appears only when set, so older web code keeps working.
+        let p = serde_json::to_string(&DictationEvent::Press {
+            t: 1,
+            app: "notepad.exe".into(),
+            translate: false,
+        })
+        .unwrap();
+        assert_eq!(p, r#"{"kind":"press","t":1,"app":"notepad.exe"}"#);
+        let pt = serde_json::to_string(&DictationEvent::Press {
+            t: 1,
+            app: "notepad.exe".into(),
+            translate: true,
+        })
+        .unwrap();
+        assert_eq!(
+            pt,
+            r#"{"kind":"press","t":1,"app":"notepad.exe","translate":true}"#
+        );
     }
 }

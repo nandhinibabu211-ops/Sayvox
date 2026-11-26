@@ -38,7 +38,12 @@ const text = $<HTMLParagraphElement>("#text");
 const action = $<HTMLButtonElement>("#action");
 const badge = $<HTMLButtonElement>("#mode");
 const hint = $<HTMLSpanElement>("#hint");
-const MODE_LABELS = { dictation: "Dictation", prompt: "Prompt", email: "Email" } as const;
+const MODE_LABELS = {
+  dictation: "Dictation",
+  prompt: "Prompt",
+  email: "Email",
+  translate: "English",
+} as const;
 let onAction: (() => void) | undefined;
 let lastText = "";
 
@@ -188,12 +193,21 @@ const settings = new SettingsStore({
 });
 let prefs: SettingsResponse | null = settings.current;
 let appliedHotkey = "";
+let appliedTranslate: string | null | undefined;
 function applySettings(s: SettingsResponse | null): void {
   prefs = s;
   if (s && s.hotkey !== appliedHotkey) {
     appliedHotkey = s.hotkey;
     void invoke("set_hotkey", { hotkey: s.hotkey }).catch(() => {});
     updateTray();
+  }
+  // Second chord: hold it to dictate into English (Settings → General).
+  if (s && s.translateHotkey !== appliedTranslate) {
+    appliedTranslate = s.translateHotkey;
+    void invoke("set_translate_hotkey", {
+      hotkey: s.translateHotkey,
+      dictationHotkey: s.hotkey,
+    }).catch(() => {});
   }
 }
 applySettings(prefs);

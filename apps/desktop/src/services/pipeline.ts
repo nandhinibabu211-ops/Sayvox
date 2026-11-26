@@ -15,7 +15,8 @@ import { SessionExpiredError } from "./session";
 
 /** Messages from Rust over the dictation channel (src-tauri/src/dictation.rs). */
 export type DictationEvent =
-  | { kind: "press"; t: number; app?: string }
+  /** `translate`: the translate shortcut was held, so this press goes to English. */
+  | { kind: "press"; t: number; app?: string; translate?: boolean }
   | { kind: "release"; t: number; audioSeconds: number }
   | { kind: "cancel"; t: number }
   /** Opt-in reply context: text selected in the target app at press (T063). */
@@ -133,7 +134,7 @@ export class DictationPipeline {
   async onEvent(ev: DictationEvent): Promise<void> {
     switch (ev.kind) {
       case "press":
-        return this.press(ev.app ?? "unknown");
+        return this.press(ev.app ?? "unknown", ev.translate === true);
       case "release":
         return this.release(ev.t, ev.audioSeconds);
       case "cancel":
@@ -159,7 +160,7 @@ export class DictationPipeline {
     this.show({ kind: "listening", partial: a.partial, mode: a.mode });
   }
 
-  private press(app: string): void {
+  private press(app: string, translate = false): void {
     // A new dictation while one waits for review: the user moved on, so discard it.
     this.review.decide("discard");
     if (this.active && !this.active.ended) this.cancel();
@@ -170,7 +171,10 @@ export class DictationPipeline {
       return;
     }
     const session = this.deps.takeSession();
-    const mode = resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
+    // The translate shortcut wins over the app's mode: anything said comes out in English.
+    const mode = translate
+      ? "translate"
+      : resolveMode(app, this.deps.modePrefs?.() ?? DEFAULT_PREFS);
     const a: Active = {
       session,
       pending: [],

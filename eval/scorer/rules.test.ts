@@ -8,7 +8,7 @@ describe("dataset (T056)", () => {
   it("has 30+ cases covering every mode, Indian English, Hinglish and injection", () => {
     expect(CASES.length).toBeGreaterThanOrEqual(30);
     const modes = new Set(CASES.map((c) => c.mode));
-    expect([...modes].sort()).toEqual(["dictation", "email", "prompt"]);
+    expect([...modes].sort()).toEqual(["dictation", "email", "prompt", "translate"]);
     expect(CASES.filter((c) => c.language === "en-IN").length).toBeGreaterThanOrEqual(5);
     expect(CASES.filter((c) => c.language === "hinglish").length).toBeGreaterThanOrEqual(3);
     expect(CASES.filter((c) => c.language === "tanglish").length).toBeGreaterThanOrEqual(5);

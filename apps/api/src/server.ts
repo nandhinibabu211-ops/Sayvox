@@ -11,6 +11,7 @@ import { keys } from "./lib/redis/keys";
 import { createIdTokenVerifier } from "./modules/auth/verifier";
 import { createScribeTokenMinter, SCRIBE_TOKEN_TTL_MS } from "./lib/elevenlabs/token";
 import { createTranscriber } from "./lib/openrouter/transcribe";
+import { createTanglishPass } from "./modules/stream/tanglish";
 import { openRouterUpstream } from "./modules/stream/upstream";
 import { startSweeper } from "./modules/session/sweeper";
 import { claimRewrite } from "./modules/limits/store";
@@ -75,6 +76,8 @@ const billingAvailable = Boolean(
   razorpay && env.RAZORPAY_WEBHOOK_SECRET && planMap.purchasable().length,
 );
 
+const openRouter = createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch });
+
 const app = buildApp({
   logger,
   auth: {
@@ -100,7 +103,7 @@ const app = buildApp({
   rewrite: {
     store: createDbRewriteStore(database.db),
     config,
-    complete: createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch }),
+    complete: openRouter,
     prices: () => prices,
     claim: (sessionId) => claimRewrite(redis, sessionId),
   },
@@ -118,6 +121,11 @@ const app = buildApp({
   stream: {
     takeTicket: (ticket) => takeTicket(redis, ticket),
     charge: createAudioCharger(database.db, redis),
+    postprocess: createTanglishPass({
+      models: async () => (await config.presets()).fastest,
+      effortFor: (slug) => config.reasoningEffort(slug),
+      complete: openRouter,
+    }),
     ...(env.STT_PROVIDER === "openrouter"
       ? {
           upstream: openRouterUpstream(

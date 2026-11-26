@@ -135,6 +135,19 @@ describe("Settings (US4)", () => {
     expect(Settings.safeParse({ ...base, hotkey: "Ctrl+Shift+K" }).success).toBe(false);
   });
 
+  it("accepts Tamil and Tanglish, and the translate mode", () => {
+    for (const languageHint of ["ta", "tanglish"]) {
+      expect(Settings.safeParse({ ...base, languageHint }).success).toBe(true);
+    }
+    expect(Settings.safeParse({ ...base, defaultMode: "translate" }).success).toBe(true);
+  });
+
+  it("takes a translate shortcut that differs from the dictation one (or none)", () => {
+    expect(Settings.safeParse({ ...base, translateHotkey: "Alt+Shift" }).success).toBe(true);
+    expect(Settings.safeParse({ ...base, translateHotkey: null }).success).toBe(true);
+    expect(Settings.safeParse({ ...base, translateHotkey: "Ctrl+Alt" }).success).toBe(false);
+  });
+
   it("rejects unknown language hints", () => {
     expect(Settings.safeParse({ ...base, languageHint: "klingon" }).success).toBe(false);
   });

@@ -26,6 +26,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 struct HookState {
     machine: ChordMachine,
+    /// Second chord: dictate into English. `None` = off.
+    translate: Option<ChordMachine>,
+    translate_binding: Option<Binding>,
+    min_hold_ms: u64,
     review: ReviewFilter,
     binding: Binding,
     /// Settings → General is recording a new hotkey: keep tracking keys, emit nothing.
@@ -64,8 +68,14 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
                     // Consumed keys never reach the chord machine (down or up), so its
                     // view of the keyboard stays consistent.
                     if !eat {
-                        if let Some(ev) = s.machine.on_key(key, t) {
-                            if !s.suspended {
+                        let main = s.machine.on_key(key, t);
+                        let second = s.translate.as_mut().and_then(|m| m.on_key(key, t));
+                        let second = second.map(|ev| match ev {
+                            HotkeyEvent::Press => HotkeyEvent::PressTranslate,
+                            other => other,
+                        });
+                        if !s.suspended {
+                            for ev in [main, second].into_iter().flatten() {
                                 let _ = s.tx.send(ev);
                             }
                         }
@@ -101,6 +111,9 @@ impl HookHandle {
             if let Some(ev) = s.machine.force_release(t) {
                 let _ = s.tx.send(ev);
             }
+            if let Some(ev) = s.translate.as_mut().and_then(|m| m.force_release(t)) {
+                let _ = s.tx.send(ev);
+            }
         });
     }
 
@@ -112,6 +125,15 @@ impl HookHandle {
         });
     }
 
+    /// Switch (or turn off) the translate chord. The caller ensures it differs from the
+    /// dictation chord.
+    pub fn set_translate_binding(&self, binding: Option<Binding>) {
+        with_state(|s| {
+            s.translate_binding = binding;
+            s.translate = binding.map(|b| ChordMachine::with_binding(s.min_hold_ms, b));
+        });
+    }
+
     /// Pause the chord while the settings window records a new one.
     pub fn set_suspended(&self, suspended: bool) {
         with_state(|s| {
@@ -119,6 +141,9 @@ impl HookHandle {
             // A hold that started while suspended must not complete after resuming.
             let b = s.binding;
             s.machine.set_binding(b);
+            if let (Some(m), Some(tb)) = (s.translate.as_mut(), s.translate_binding) {
+                m.set_binding(tb);
+            }
         });
     }
 
@@ -147,6 +172,9 @@ pub fn install(
     STATE
         .set(Mutex::new(HookState {
             machine: ChordMachine::with_binding(min_hold_ms, binding),
+            translate: None,
+            translate_binding: None,
+            min_hold_ms,
             review: ReviewFilter::default(),
             binding,
             suspended: false,

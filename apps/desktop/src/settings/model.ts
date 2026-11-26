@@ -99,6 +99,8 @@ export const LANGUAGE_CHOICES: readonly { value: LanguageHint; label: string }[]
   { value: "auto", label: "Auto-detect" },
   { value: "en", label: "English" },
   { value: "en-IN", label: "English (India)" },
+  { value: "ta", label: "Tamil (தமிழ்)" },
+  { value: "tanglish", label: "Tanglish (Tamil in English letters + English)" },
   { value: "hinglish", label: "Hinglish (Hindi + English)" },
 ];
 
@@ -113,6 +115,7 @@ export const MODE_CHOICES: readonly { value: Mode; label: string }[] = [
   { value: "dictation", label: "Dictation (clean text)" },
   { value: "prompt", label: "Prompt (structured for AI tools)" },
   { value: "email", label: "Email / chat message" },
+  { value: "translate", label: "English (translate what I say)" },
 ];
 
 /** Friendly names for the ids the built-in map and running-app picker produce. */

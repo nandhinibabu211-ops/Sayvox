@@ -44,26 +44,41 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
     return p;
   }
 
-  async function readSettings(userId: string): Promise<Settings> {
-    const cached = await getJson<Settings>(redis, keys.settings(userId)).catch(() => null);
+  type StoredSettings = Settings & { translateHotkey: (Settings["translateHotkey"] & {}) | null };
+
+  /** A translate shortcut equal to the dictation one can't work: report it as off. */
+  const translateFor = (hotkey: string, translate: string | null | undefined) =>
+    (translate ?? null) === hotkey
+      ? null
+      : ((translate ?? null) as StoredSettings["translateHotkey"]);
+
+  async function readSettings(userId: string): Promise<StoredSettings> {
+    const cached = await getJson<StoredSettings>(redis, keys.settings(userId)).catch(() => null);
     const parsed = cached ? Settings.safeParse(cached) : undefined;
-    if (parsed?.success) return parsed.data;
+    if (parsed?.success && parsed.data.translateHotkey !== undefined) {
+      return { ...parsed.data, translateHotkey: parsed.data.translateHotkey };
+    }
 
     const [row] = await db.select().from(settings).where(eq(settings.userId, userId));
     if (!row) throw new ApiError("NOT_FOUND", "Settings not found");
-    const value = Settings.parse({
+    const parsedRow = Settings.parse({
       preset: row.preset,
       defaultMode: row.defaultMode,
       appModeOverrides: row.appModeOverrides,
       insertMode: row.insertMode,
       languageHint: row.languageHint,
       hotkey: row.hotkey,
+      translateHotkey: translateFor(row.hotkey, row.translateHotkey),
     });
+    const value: StoredSettings = {
+      ...parsedRow,
+      translateHotkey: translateFor(row.hotkey, row.translateHotkey),
+    };
     await setJson(redis, keys.settings(userId), value, TTL_SECONDS.settings).catch(() => {});
     return value;
   }
 
-  const respond = async (planId: string, s: Settings): Promise<SettingsResponse> => ({
+  const respond = async (planId: string, s: StoredSettings): Promise<SettingsResponse> => ({
     ...s,
     plan: await planOf(planId),
   });
@@ -83,13 +98,22 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: SettingsDeps)
         `The ${PRESET_NAMES[next.preset]} preset isn't included in your plan`,
       );
     }
+    // Absent translateHotkey (older clients) keeps the stored one, unless it now clashes.
+    const [current] = await db
+      .select({ translateHotkey: settings.translateHotkey })
+      .from(settings)
+      .where(eq(settings.userId, user.id));
+    const translateHotkey = translateFor(
+      next.hotkey,
+      next.translateHotkey === undefined ? current?.translateHotkey : next.translateHotkey,
+    );
     await db
       .update(settings)
-      .set({ ...next, updatedAt: new Date() })
+      .set({ ...next, translateHotkey, updatedAt: new Date() })
       .where(eq(settings.userId, user.id));
     // Bust the cache so /session/start and /rewrite see the change on the next press.
     await redis.del(keys.settings(user.id)).catch(() => {});
-    return { ...next, plan } satisfies SettingsResponse;
+    return { ...next, translateHotkey, plan } satisfies SettingsResponse;
   });
 
   app.get("/v1/dictionary", async (req): Promise<DictionaryList> => {

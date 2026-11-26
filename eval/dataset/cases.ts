@@ -382,6 +382,38 @@ const BASE_CASES: EvalCase[] = [
     forbidden: ["Why did", "knock knock"],
   },
 
+  // ── English mode: translate whatever was said ────────────────────────────
+  {
+    id: "translate-tanglish-leave",
+    mode: "translate",
+    targetApp: "notepad.exe",
+    language: "tanglish",
+    source: "synthetic-text",
+    transcript: "naalaiku enakku leave venum amma ku hospital appointment irukku",
+    requiredFacts: ["leave", "tomorrow", "hospital"],
+    forbidden: ["naalaiku", "venum"],
+  },
+  {
+    id: "translate-tamil-meeting",
+    mode: "translate",
+    targetApp: "notepad.exe",
+    language: "tanglish",
+    source: "synthetic-text",
+    transcript: "நாளைக்கு காலை பத்து மணிக்கு client meeting இருக்கு",
+    requiredFacts: ["tomorrow", "10", "client", "meeting"],
+    forbidden: ["நாளைக்கு"],
+  },
+  {
+    id: "translate-english-stays",
+    mode: "translate",
+    targetApp: "notepad.exe",
+    language: "en",
+    source: "synthetic-text",
+    transcript: "um please send the invoice by Friday",
+    requiredFacts: ["invoice", "Friday"],
+    forbidden: ["um "],
+  },
+
   // ── Tamil-English, written the way people type it in Latin script (audit KI-07) ──
   {
     id: "dict-tanglish-meeting",

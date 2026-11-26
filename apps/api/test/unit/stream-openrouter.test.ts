@@ -23,7 +23,11 @@ afterEach(async () => {
   await Promise.all(closers.splice(0).map((c) => c()));
 });
 
-async function harness(transcribe: Transcribe, partialEveryMs = 0) {
+async function harness(
+  transcribe: Transcribe,
+  partialEveryMs = 0,
+  postprocess?: (text: string) => Promise<string>,
+) {
   const charges: ChargeInput[] = [];
   const ticket: StreamTicketData = {
     sessionId: "3f1c2a4e-8b7d-4c1a-9e2f-1a2b3c4d5e6f",
@@ -43,6 +47,7 @@ async function harness(transcribe: Transcribe, partialEveryMs = 0) {
         charges.push(c);
       },
       upstream: openRouterUpstream(transcribe, { partialEveryMs }),
+      ...(postprocess ? { postprocess } : {}),
     },
   });
   await app.listen({ port: 0, host: "127.0.0.1" });
@@ -90,6 +95,20 @@ describe("OpenRouter speech-to-text upstream (ADR-012)", () => {
     for (let i = 0; i < 100 && h.charges.length === 0; i++)
       await new Promise((r) => setTimeout(r, 10));
     expect(h.charges[0]).toMatchObject({ seconds: 1.5, costUsd: 0.00002 });
+  });
+
+  it("runs the transcript postprocess (Tanglish pass) before the client sees it", async () => {
+    const transcribe = vi.fn<Transcribe>(async () => ({
+      text: "நாளைக்கு meeting",
+      model: "m",
+      costUsd: 0,
+    }));
+    const h = await harness(transcribe, 0, async () => "naalaiku meeting");
+    await h.waitFor("session_started");
+    h.ws.send(chunk(0.5));
+    h.ws.send(chunk(0, true));
+    expect((await h.waitFor("committed_transcript"))?.text).toBe("naalaiku meeting");
+    h.ws.close();
   });
 
   it("sends live text while the user speaks", async () => {
