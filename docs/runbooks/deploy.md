@@ -98,8 +98,13 @@ How it was created (repeat in this order for a rebuild):
 - Provider keys (owner, later): add versions to `sayvox-staging-elevenlabs-api-key` and
   `sayvox-staging-openrouter-api-key`, set `provider_keys_ready = true`, apply. Until then
   `/v1/session/start` answers 503 `PROVIDER_UNAVAILABLE` and rewrites fail over to raw text.
-- GitHub `staging` environment variables are set. `DEPLOY_ENABLED` is **not** set: the
-  workflow's prod job must have a `production` environment with required reviewers first.
+- GitHub `staging` environment variables are set and `DEPLOY_ENABLED=true` (2026-11-26):
+  every merge to `main` that touches the API or web pages deploys **staging** automatically.
+  The prod job is skipped until the repository variable `PROD_ENABLED=true`; set that only
+  after prod infrastructure exists and the `production` environment has required reviewers.
+- **Test installer for Windows 10/11:** Actions -> "Staging test installer" -> Run workflow
+  builds unsigned `.exe`/`.msi` wired to staging (artifact kept 14 days). Version
+  `0.1.0+staging` (build metadata, so it isn't treated as older than `minClientVersion`).
 - Observability is applied (2026-11-26, state prefix `observability/staging`): dashboard,
   Cloud Run 5xx, job-failure, spend-spike and reconciliation alerts to the owner's Google Cloud
   email, BigQuery product-events sink, ₹2,000/month project budget. Alerts on the API's own
