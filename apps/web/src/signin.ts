@@ -5,10 +5,12 @@ import {
   browserPopupRedirectResolver,
   initializeAuth,
   inMemoryPersistence,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   type User,
 } from "firebase/auth";
+import { authErrorMessage, RESET_SENT } from "./authMessages";
 import { webConfig } from "./config";
 import { deepLink, parseHandoff, sendToDesktop } from "./handoff";
 
@@ -70,17 +72,7 @@ async function run(action: () => Promise<{ user: User }>): Promise<void> {
   try {
     await finish((await action()).user);
   } catch (err) {
-    const code = (err as { code?: string }).code ?? "";
-    show(
-      code.includes("invalid-credential") || code.includes("wrong-password")
-        ? "Email or password is incorrect."
-        : code.includes("email-already-in-use")
-          ? "An account with this email exists. Sign in instead."
-          : code.includes("popup-closed")
-            ? "Sign-in was cancelled."
-            : "Sign-in failed. Please try again.",
-      true,
-    );
+    show(authErrorMessage((err as { code?: string }).code), true);
     buttons().forEach((b) => (b.disabled = false));
   }
 }
@@ -101,6 +93,18 @@ if (config.googleSignIn) {
 $<HTMLFormElement>("email-form").addEventListener("submit", (e) => {
   e.preventDefault();
   void run(() => signInWithEmailAndPassword(auth, email(), password()));
+});
+$<HTMLButtonElement>("reset").addEventListener("click", () => {
+  const address = email();
+  if (!address) return show(authErrorMessage("missing-email"), true);
+  void sendPasswordResetEmail(auth, address)
+    .then(() => show(RESET_SENT))
+    .catch((err: unknown) => {
+      const code = (err as { code?: string }).code ?? "";
+      // Unknown accounts get the same answer as known ones (no account discovery).
+      if (code.includes("user-not-found") || code.includes("invalid-credential")) show(RESET_SENT);
+      else show(authErrorMessage(code), true);
+    });
 });
 $<HTMLButtonElement>("create").addEventListener("click", () => {
   if (!$<HTMLFormElement>("email-form").reportValidity()) return;

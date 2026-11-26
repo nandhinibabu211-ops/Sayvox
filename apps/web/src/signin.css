@@ -119,3 +119,9 @@ button:disabled {
 .legal a {
   color: var(--accent);
 }
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--muted, #5c5c66);
+}
