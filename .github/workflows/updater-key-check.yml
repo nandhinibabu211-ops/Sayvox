@@ -1,0 +1,35 @@
+name: Check updater signing key
+
+# Proves the GitHub secrets TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) sign with the key whose
+# public half ships in apps/desktop/src-tauri/tauri.conf.json, without building or
+# publishing a release. Signs a throwaway file and verifies it; prints only key ids and
+# pass/fail. Run it after adding or rotating the secrets (Actions -> Run workflow).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Sign a test file and verify it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter "@sayvox/desktop..."
+      - name: Sign a test file with the secret key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then echo "::error::TAURI_SIGNING_PRIVATE_KEY is not set"; exit 1; fi
+          echo "sayvox updater key check $(date -u +%FT%TZ)" > "$RUNNER_TEMP/check.txt"
+          pnpm --filter @sayvox/desktop exec tauri signer sign "$RUNNER_TEMP/check.txt" > /dev/null
+      - name: Verify against the public key in tauri.conf.json
+        run: node apps/desktop/scripts/verify-updater-signature.mjs "$RUNNER_TEMP/check.txt" "$RUNNER_TEMP/check.txt.sig"

@@ -5,7 +5,7 @@ refer to SECURITY_AUDIT.md.
 
 | ID | Severity | Issue | Owner action / fix |
 | --- | --- | --- | --- |
-| KI-02 | High (blocker) | Updater public key set 2026-11-26 (minisign key id 359AEAE4B0187940). Releases still blocked: GitHub secrets `TAURI_SIGNING_PRIVATE_KEY`(`_PASSWORD`), the release workflow's repo variables and the `release-updates` approval environment are missing | release.md steps 1–3 |
+| KI-02 | High (blocker) | Updater public key set 2026-11-26 (minisign key id 359AEAE4B0187940). Signing secrets and the `release-updates` approval environment added the same day. Releases still need the prod `API_BASE_URL`, `WEB_ORIGIN` and `FIREBASE_WEB_API_KEY` repo variables (prod not created) | release.md step 1 |
 | KI-03 | High (blocker) | Privacy policy and terms are drafts without legal review | Legal review, then remove the draft banner |
 | KI-04 | High (blocker) | Staging is deployed (2026-11-25, cheap shape, smoke passes) but without provider keys; prod is not created; Identity Platform not configured | Add staging keys; prod setup only with owner approval |
 | KI-05 | Medium | Pro plan price and limits are placeholders (`seed.ts`); Razorpay plan ids not created | Decide pricing; create the Razorpay plan; set `RAZORPAY_PLAN_IDS` |
