@@ -86,7 +86,7 @@ jobs:
         run: |
           gcloud run services update "${{ vars.WEB_SERVICE }}" --region="$REGION" \
             --image="${{ steps.image.outputs.web_image }}" \
-            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }}" --quiet
+            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }},API_BASE_URL=${{ vars.API_BASE_URL }}" --quiet
           curl -fsS "${{ vars.WEB_ORIGIN }}/health" > /dev/null
           curl -fsS "${{ vars.WEB_ORIGIN }}/config.js" | grep -q 'apiKey: "AIza' || { echo "::error::web config has no API key"; exit 1; }
 
@@ -183,6 +183,6 @@ jobs:
         run: |
           gcloud run services update "${{ vars.WEB_SERVICE }}" --region="$REGION" \
             --image="${{ needs.staging.outputs.web_image }}" \
-            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }}" --quiet
+            --update-env-vars="FIREBASE_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }},GOOGLE_SIGNIN=${{ vars.GOOGLE_SIGNIN || 'false' }},API_BASE_URL=${{ vars.API_BASE_URL }}" --quiet
           curl -fsS "${{ vars.WEB_ORIGIN }}/health" > /dev/null
           curl -fsS "${{ vars.WEB_ORIGIN }}/config.js" | grep -q 'apiKey: "AIza' || { echo "::error::web config has no API key"; exit 1; }

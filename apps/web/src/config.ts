@@ -6,12 +6,15 @@
  */
 export interface WebConfig {
   apiKey: string;
+  /** Sayvox API for the in-browser app (empty until configured). */
+  apiBaseUrl: string;
   authDomain: string;
   googleSignIn: boolean;
 }
 
 interface RawConfig {
   apiKey?: string;
+  apiBaseUrl?: string;
   authDomain?: string;
   googleSignIn?: string;
 }
@@ -23,6 +26,7 @@ export function webConfig(
   const pick = (v: string | undefined, fallback: string | undefined) => (v ? v : (fallback ?? ""));
   return {
     apiKey: pick(raw?.apiKey, env["VITE_FIREBASE_API_KEY"]),
+    apiBaseUrl: pick(raw?.apiBaseUrl, env["VITE_API_BASE_URL"]).replace(/\/$/, ""),
     authDomain:
       pick(raw?.authDomain, env["VITE_FIREBASE_AUTH_DOMAIN"]) || "sayvox-app-2026.firebaseapp.com",
     googleSignIn: pick(raw?.googleSignIn, env["VITE_GOOGLE_SIGNIN"]) === "true",

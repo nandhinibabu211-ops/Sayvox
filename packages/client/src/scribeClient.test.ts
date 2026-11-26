@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket as NodeWebSocket } from "ws";
-import { startMockScribe, type MockScribe } from "../../test/mocks/scribeServer";
+import { startMockScribe, type MockScribe } from "../test/mocks/scribeServer";
 import { ScribeError, ScribeSession, STREAM_PROTOCOL, streamUrl, toBase64 } from "./scribeClient";
 
 let mock: MockScribe;

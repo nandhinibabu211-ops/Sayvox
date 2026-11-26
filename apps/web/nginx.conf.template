@@ -1,7 +1,7 @@
 # Static pages on Cloud Run (port 8080). Same behaviour as the old firebase.json:
 # clean URLs (/signin serves signin.html), security headers, and no caching for /signin.
-# This is a template: the nginx image fills ${FIREBASE_API_KEY}, ${FIREBASE_AUTH_DOMAIN} and
-# ${GOOGLE_SIGNIN} from the container environment at start (only variables that are set),
+# This is a template: the nginx image fills ${FIREBASE_API_KEY}, ${FIREBASE_AUTH_DOMAIN},
+# ${GOOGLE_SIGNIN} and ${API_BASE_URL} from the container environment at start (only variables that are set),
 # so one image serves every environment.
 server {
     listen 8080;
@@ -37,7 +37,7 @@ server {
         default_type application/javascript;
         add_header Cache-Control "no-store" always;
         add_header X-Content-Type-Options "nosniff" always;
-        return 200 'window.SAYVOX_CONFIG = { apiKey: "${FIREBASE_API_KEY}", authDomain: "${FIREBASE_AUTH_DOMAIN}", googleSignIn: "${GOOGLE_SIGNIN}" };';
+        return 200 'window.SAYVOX_CONFIG = { apiKey: "${FIREBASE_API_KEY}", authDomain: "${FIREBASE_AUTH_DOMAIN}", googleSignIn: "${GOOGLE_SIGNIN}", apiBaseUrl: "${API_BASE_URL}" };';
     }
 
     location = /health {

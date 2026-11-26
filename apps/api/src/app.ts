@@ -11,6 +11,7 @@ import { registerSessionRoutes, type SessionDeps } from "./modules/session/route
 import { registerSettingsRoutes, type SettingsDeps } from "./modules/settings/routes";
 import { registerStreamProxy, type StreamDeps } from "./modules/stream/proxy";
 import { registerTelemetryRoutes, type TelemetryDeps } from "./modules/telemetry/routes";
+import { DEFAULT_CORS_ORIGINS, registerCors } from "./plugins/cors";
 import { registerErrorHandling } from "./plugins/errors";
 
 export interface BuildAppOptions {
@@ -35,6 +36,8 @@ export interface BuildAppOptions {
   billing?: BillingDeps;
   /** WebSocket /v1/stream: metered Scribe proxy (audit SEC-03); auth is the session ticket. */
   stream?: StreamDeps;
+  /** Browser origins allowed to call the API (desktop webview, web app). */
+  corsOrigins?: readonly string[];
 }
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
@@ -51,6 +54,7 @@ export function buildApp({
   usage,
   billing,
   stream,
+  corsOrigins = DEFAULT_CORS_ORIGINS,
 }: BuildAppOptions): FastifyInstance {
   const app = Fastify({
     loggerInstance: logger,
@@ -69,6 +73,8 @@ export function buildApp({
 
   registerErrorHandling(app);
   registerHttpMetrics(app);
+  // Before auth: preflights carry no token.
+  registerCors(app, corsOrigins);
   if (auth) registerAuth(app, auth);
 
   // /healthz for container probes; /health from outside, because Cloud Run's frontend

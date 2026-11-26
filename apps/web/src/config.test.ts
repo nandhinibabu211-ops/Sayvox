@@ -5,15 +5,26 @@ describe("webConfig", () => {
   it("prefers the runtime /config.js values (one image for every environment)", () => {
     expect(
       webConfig(
-        { apiKey: "runtime", authDomain: "d.example", googleSignIn: "true" },
+        {
+          apiKey: "runtime",
+          apiBaseUrl: "https://api.example/",
+          authDomain: "d.example",
+          googleSignIn: "true",
+        },
         { VITE_FIREBASE_API_KEY: "build" },
       ),
-    ).toEqual({ apiKey: "runtime", authDomain: "d.example", googleSignIn: true });
+    ).toEqual({
+      apiKey: "runtime",
+      apiBaseUrl: "https://api.example",
+      authDomain: "d.example",
+      googleSignIn: true,
+    });
   });
 
   it("falls back to build-time env for local dev, with Google sign-in off by default", () => {
     expect(webConfig(undefined, { VITE_FIREBASE_API_KEY: "dev" })).toEqual({
       apiKey: "dev",
+      apiBaseUrl: "",
       authDomain: "sayvox-app-2026.firebaseapp.com",
       googleSignIn: false,
     });

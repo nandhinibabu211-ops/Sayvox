@@ -37,6 +37,8 @@ export const EnvSchema = z.object({
 
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  /** Extra browser origins for CORS (comma-separated), e.g. the web app origin. */
+  CORS_ORIGINS: z.string().default(""),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(5),
   /** Raise for scale-to-zero databases (AlloyDB Express wakes in ~20 s). */
   DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(5_000),

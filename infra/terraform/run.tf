@@ -12,6 +12,9 @@ locals {
     OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
     RAZORPAY_PLAN_IDS           = var.razorpay_plan_ids
     DB_CONNECT_TIMEOUT_MS       = tostring(var.db_connect_timeout_ms)
+    # The web app (web.tf) calls the API from the browser; the desktop webview origins are
+    # built in (apps/api/src/plugins/cors.ts).
+    CORS_ORIGINS = "https://${local.name}-web-${data.google_project.this.number}.${var.region}.run.app"
   }
   # `cfg` is the runtime-config CLI (kill switch, rollout, min version) run inside the VPC,
   # because Memorystore has no public address. Run it with
