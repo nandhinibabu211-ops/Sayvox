@@ -30,6 +30,7 @@ export function micGuide(problem: MicProblem): MicGuide {
           'Find "Microphone" and set it to "Allow".',
           "Reload the page, then hold the button or Space bar and speak.",
           'Still blocked? In Windows Settings → Privacy & security → Microphone, turn on "Microphone access" and "Let apps access your microphone".',
+          "Opened inside another app's window (for example a browser pane in a chat or code app)? Those block the microphone: open this page in Chrome or Edge instead.",
         ],
       };
     case "embedded":
