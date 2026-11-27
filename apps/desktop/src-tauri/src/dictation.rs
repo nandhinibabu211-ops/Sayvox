@@ -119,6 +119,7 @@ fn handle_hotkeys(app: AppHandle, rx: Receiver<HotkeyEvent>) {
                 // Read the target app before the overlay appears.
                 let target = crate::active_app::foreground_app_id();
                 overlay::show(&app);
+                overlay::watch_press(&app);
                 send(DictationEvent::Press {
                     t,
                     app: target,
