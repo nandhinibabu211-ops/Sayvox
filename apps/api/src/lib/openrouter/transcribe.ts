@@ -62,12 +62,21 @@ export type Transcribe = (req: TranscribeRequest) => Promise<Transcript>;
 /** Whisper-style models take vocabulary as a prompt; the others take `keyterms`. */
 const promptStyle = (model: string) => /whisper|gpt-4o.*transcribe/.test(model);
 
+export interface TranscribeAttempt {
+  model: string;
+  /** HTTP status, or "timeout" / "network" / "bad_body". */
+  outcome: number | "timeout" | "network" | "bad_body";
+  ms: number;
+}
+
 export function createTranscriber(opts: {
   apiKey: string | undefined;
   models: readonly string[];
   fetchFn?: typeof fetch;
   baseUrl?: string;
   timeoutMs?: number;
+  /** Diagnostics hook (status codes and timings only). */
+  onAttempt?: (a: TranscribeAttempt) => void;
 }): Transcribe {
   const fetchFn = opts.fetchFn ?? fetch;
   return async (req) => {
@@ -89,6 +98,9 @@ export function createTranscriber(opts: {
         temperature: 0,
         provider: { zdr: true, data_collection: "deny", sort: "latency" },
       };
+      const started = Date.now();
+      const report = (outcome: TranscribeAttempt["outcome"]) =>
+        opts.onAttempt?.({ model, outcome, ms: Date.now() - started });
       let res: Response;
       try {
         res = await fetchFn(`${opts.baseUrl ?? OPENROUTER_BASE}/audio/transcriptions`, {
@@ -100,9 +112,11 @@ export function createTranscriber(opts: {
           body: JSON.stringify(body),
           signal: AbortSignal.timeout(opts.timeoutMs ?? 10_000),
         });
-      } catch {
+      } catch (err) {
+        report((err as Error).name === "TimeoutError" ? "timeout" : "network");
         continue; // timeout or network: try the next model
       }
+      report(res.status);
       if (res.status === 401 || res.status === 403) throw new TranscribeError("auth", res.status);
       if (!res.ok) {
         lastStatus = res.status;
@@ -113,6 +127,7 @@ export function createTranscriber(opts: {
         usage?: { cost?: unknown };
       };
       if (typeof out.text !== "string") {
+        report("bad_body");
         lastStatus = res.status;
         continue;
       }

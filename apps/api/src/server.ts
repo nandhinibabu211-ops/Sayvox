@@ -76,6 +76,31 @@ const billingAvailable = Boolean(
   razorpay && env.RAZORPAY_WEBHOOK_SECRET && planMap.purchasable().length,
 );
 
+const transcriber = createTranscriber({
+  apiKey: env.OPENROUTER_API_KEY,
+  models: env.STT_MODELS,
+  fetchFn: pooledFetch,
+  onAttempt: (a) => logger.info(a, "stt attempt"),
+});
+if (env.STT_PROVIDER === "openrouter") {
+  // Self-test: one second of a 440 Hz tone through the real path; logs outcome only.
+  const tone = Buffer.alloc(32_000);
+  for (let i = 0; i < 16_000; i++)
+    tone.writeInt16LE(Math.round(Math.sin((i * 2 * Math.PI * 440) / 16_000) * 8_000), i * 2);
+  void transcriber({ pcm: tone, keyterms: [] }).then(
+    (r) => logger.info({ model: r.model, textLength: r.text.length }, "stt self-test ok"),
+    (err: unknown) =>
+      logger.warn(
+        {
+          errName: (err as Error).name,
+          kind: (err as { kind?: string }).kind,
+          status: (err as { status?: number }).status,
+        },
+        "stt self-test failed",
+      ),
+  );
+}
+
 const openRouter = createOpenRouterClient({ apiKey: env.OPENROUTER_API_KEY, fetchFn: pooledFetch });
 
 const app = buildApp({
@@ -128,14 +153,10 @@ const app = buildApp({
     }),
     ...(env.STT_PROVIDER === "openrouter"
       ? {
-          upstream: openRouterUpstream(
-            createTranscriber({
-              apiKey: env.OPENROUTER_API_KEY,
-              models: env.STT_MODELS,
-              fetchFn: pooledFetch,
-            }),
-            { partialEveryMs: env.STT_PARTIAL_EVERY_MS, partialModels: env.STT_MODELS.slice(0, 1) },
-          ),
+          upstream: openRouterUpstream(transcriber, {
+            partialEveryMs: env.STT_PARTIAL_EVERY_MS,
+            partialModels: env.STT_MODELS.slice(0, 1),
+          }),
         }
       : {}),
   },

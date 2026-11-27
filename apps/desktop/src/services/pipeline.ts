@@ -67,6 +67,18 @@ export interface PipelineDeps {
   }) => void;
   /** Pause before hiding after success / error (ms). */
   schedule?: (fn: () => void, ms: number) => void;
+  /** Error report for a failed dictation (failure type only, never text). */
+  reportFailure?: (err: unknown) => void;
+}
+
+/** "SCRIBE_TIMEOUT", "SCRIBE_REJECTED_TRANSCRIBER_ERROR", "API_PROVIDER_UNAVAILABLE"… */
+export function failureName(err: unknown): string {
+  if (err instanceof ScribeError) {
+    return `scribe_${err.failure}${err.providerType ? `_${err.providerType}` : ""}`;
+  }
+  const code = (err as { code?: unknown })?.code;
+  if (typeof code === "string") return `api_${code}`;
+  return err instanceof Error ? err.name : "unknown";
 }
 
 interface Active {
@@ -202,6 +214,7 @@ export class DictationPipeline {
     a.scribe.catch((err: unknown) => {
       if (this.active === a && !a.ended) {
         a.ended = true;
+        this.deps.reportFailure?.(err);
         this.fail(errorFor(errorCode(err), quotaMessage(err)));
       }
     });
@@ -221,6 +234,7 @@ export class DictationPipeline {
       for (const c of a.pending.splice(0)) scribe.sendChunk(c);
       result = await scribe.commit();
     } catch (err) {
+      this.deps.reportFailure?.(err);
       this.fail(errorFor(errorCode(err), quotaMessage(err)));
       const s = await a.session.catch(() => undefined);
       if (s) void this.end(a, s.sessionId, audioSeconds, "failed", 0, 0);
@@ -326,7 +340,8 @@ export class DictationPipeline {
   private fail(state: Extract<OverlayState, { kind: "error" }>): void {
     this.show(state);
     // Microphone problems need the user to act: leave time to read and click.
-    this.schedule(() => this.show({ kind: "hidden" }), state.micProblem ? 10_000 : 3_000);
+    // Short: the notch belongs to the hold. Mic problems get a little longer to click "Fix it".
+    this.schedule(() => this.show({ kind: "hidden" }), state.micProblem ? 6_000 : 2_500);
   }
 
   private end(
