@@ -21,6 +21,8 @@ export type OverlayState =
       kind: "error";
       message: string;
       action?: "openMicSettings" | "signIn" | "upgrade" | "update";
+      /** Which microphone guide the action opens (Settings window). */
+      micProblem?: "windows-off" | "no-device";
     };
 
 export const INSERTED_HIDE_MS = 800;
@@ -37,9 +39,15 @@ export function errorFor(code: string, message?: string): Extract<OverlayState, 
         kind: "error",
         message: "Microphone access is off for apps in Windows settings.",
         action: "openMicSettings",
+        micProblem: "windows-off",
       };
     case "noDevice":
-      return { kind: "error", message: "No microphone found." };
+      return {
+        kind: "error",
+        message: "No microphone found.",
+        action: "openMicSettings",
+        micProblem: "no-device",
+      };
     case "deviceLost":
       return { kind: "error", message: "Microphone disconnected." };
     case "QUOTA_EXCEEDED":

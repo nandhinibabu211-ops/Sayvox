@@ -174,9 +174,20 @@ describe("DictationPipeline (US1)", () => {
     const h = harness();
     await h.p.onEvent({ kind: "press", t: 0 });
     await h.p.onEvent({ kind: "audioError", code: "permissionDenied" });
-    expect(h.states).toContainEqual(
-      expect.objectContaining({ kind: "error", action: "openMicSettings" }),
-    );
+    // The error must come after the cancel's hide (it used to be wiped at once). This harness
+    // runs the scheduled hide immediately, so the error is the second-to-last state.
+    expect(h.states.at(-2)).toMatchObject({
+      kind: "error",
+      action: "openMicSettings",
+      micProblem: "windows-off",
+    });
+  });
+
+  it("a missing microphone also offers help", async () => {
+    const h = harness();
+    await h.p.onEvent({ kind: "press", t: 0 });
+    await h.p.onEvent({ kind: "audioError", code: "noDevice" });
+    expect(h.states.at(-2)).toMatchObject({ kind: "error", micProblem: "no-device" });
   });
 
   describe("AI modes (US2)", () => {

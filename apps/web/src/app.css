@@ -145,6 +145,33 @@ button.link {
   color: #c62828;
 }
 
+.mic-dialog {
+  max-width: 480px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--fg);
+  padding: 20px 24px;
+}
+
+.mic-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.mic-dialog h2 {
+  margin-top: 0;
+}
+
+.mic-steps {
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.mic-result {
+  min-height: 1.4em;
+  color: var(--muted);
+}
+
 .usage {
   margin-top: 24px;
 }
