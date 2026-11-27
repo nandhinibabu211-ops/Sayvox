@@ -131,6 +131,7 @@ pub fn run() {
             dictation::hotkey_suspend,
             dictation::review_keys,
             overlay::overlay_hide,
+            overlay::overlay_rendered,
             overlay::overlay_resize,
             selection::set_reply_context,
             active_app::list_running_apps,

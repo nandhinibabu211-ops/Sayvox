@@ -73,7 +73,14 @@ function fit(): void {
   root.classList.toggle("tall", wanted > 64);
 }
 
+let lastReported = 0;
 function render(s: OverlayState): void {
+  // Tell the Rust watchdog this page is alive (at most every 500 ms while streaming).
+  const t = Date.now();
+  if (t - lastReported > 500 || s.kind !== "rewriting") {
+    lastReported = t;
+    void invoke("overlay_rendered").catch(() => {});
+  }
   root.dataset["state"] = s.kind;
   label.textContent = LABELS[s.kind];
   action.hidden = true;
