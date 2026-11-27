@@ -146,8 +146,9 @@ export class DictationPipeline {
         if (this.active && !this.active.ended) this.active.threadContext = ev.threadContext;
         return;
       case "audioError":
-        this.fail(errorFor(ev.code));
+        // Cancel first: it hides the overlay, which would wipe the error straight away.
         this.cancel();
+        this.fail(errorFor(ev.code));
         return;
     }
   }
@@ -324,7 +325,8 @@ export class DictationPipeline {
 
   private fail(state: Extract<OverlayState, { kind: "error" }>): void {
     this.show(state);
-    this.schedule(() => this.show({ kind: "hidden" }), 3_000);
+    // Microphone problems need the user to act: leave time to read and click.
+    this.schedule(() => this.show({ kind: "hidden" }), state.micProblem ? 10_000 : 3_000);
   }
 
   private end(

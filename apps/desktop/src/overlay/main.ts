@@ -129,9 +129,16 @@ function render(s: OverlayState): void {
     case "error":
       text.textContent = s.message;
       if (s.action === "openMicSettings") {
-        action.textContent = "Open settings";
+        action.textContent = s.micProblem === "no-device" ? "How to fix" : "Fix it";
         action.hidden = false;
-        onAction = () => void openMicrophoneSettings();
+        onAction = () => {
+          // Step-by-step guide in the Sayvox window, plus the Windows page it points to.
+          void showMainWindow().then(() =>
+            emitTo("main", "settings://mic-help", { problem: s.micProblem ?? "windows-off" }),
+          );
+          if (s.micProblem !== "no-device") void openMicrophoneSettings();
+          render({ kind: "hidden" });
+        };
       } else if (s.action === "update") {
         action.textContent = "Update";
         action.hidden = false;

@@ -6,3 +6,4 @@
 export * from "./scribeClient";
 export * from "./rewriteClient";
 export * from "./cleanup";
+export * from "./micGuide";

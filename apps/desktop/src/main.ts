@@ -18,6 +18,7 @@ import { startTelemetry } from "./telemetry";
 import { ClientConfigWatcher } from "./updates/clientConfig";
 import { mountGate } from "./updates/gateView";
 import { fetchClientConfig } from "./updates/runtime";
+import { showMicHelp } from "./settings/micHelp";
 
 /** Settings / onboarding window (front-end spec §2–4). */
 
@@ -147,6 +148,10 @@ window.addEventListener("focus", () => {
 });
 
 // The overlay's "Upgrade" (daily limit reached, T086) opens this window on Usage & Plan.
+void listen<{ problem?: "windows-off" | "no-device" }>("settings://mic-help", (e) => {
+  showMicHelp(e.payload.problem ?? "windows-off");
+}).catch(() => {});
+
 void listen<{ page?: string }>("settings://open", (e) => {
   if (e.payload.page === "usage" && !$("signed-in").hidden) show("usage");
 }).catch(() => {});

@@ -1,5 +1,6 @@
 import {
   cleanup,
+  micProblemFromError,
   RewriteFailed,
   ScribeError,
   ScribeSession,
@@ -19,6 +20,7 @@ import { CAPTURE_WORKLET, Resampler, toPcm16 } from "./audio";
 import { authErrorMessage } from "./authMessages";
 import { webConfig } from "./config";
 import { apiErrorMessage, ApiFailure } from "./appMessages";
+import { isEmbedded, micPermission, showMicDialog } from "./micDialog";
 
 /**
  * Sayvox in the browser (app.html): sign in, hold to talk, get dictation / a structured
@@ -91,6 +93,7 @@ $<HTMLFormElement>("signin-form").addEventListener("submit", (e) => {
       show("");
       void refreshUsage();
       void loadSettings();
+      void checkMicUpFront();
     })
     .catch((err: unknown) => show(authErrorMessage((err as { code?: string }).code), true));
 });
@@ -141,6 +144,17 @@ languageSelect.addEventListener("change", () => {
       show(apiErrorMessage(err), true);
     });
 });
+
+// ── Microphone ──────────────────────────────────────────────────────────
+
+/** Before the first press: explain a blocked mic now, rather than on the first try. */
+async function checkMicUpFront(): Promise<void> {
+  if (isEmbedded()) {
+    void showMicDialog("embedded");
+    return;
+  }
+  if ((await micPermission()) === "denied") void showMicDialog("browser-denied");
+}
 
 // ── Usage ───────────────────────────────────────────────────────────────
 
@@ -288,14 +302,20 @@ async function stop(): Promise<void> {
   } catch (err) {
     stopAudio(r);
     live.textContent = "";
-    show(
-      err instanceof ScribeError
-        ? "Speech recognition failed. Try again."
-        : err instanceof DOMException && err.name === "NotAllowedError"
-          ? "Allow microphone access for this site (the icon in the address bar), then try again."
-          : apiErrorMessage(err),
-      true,
-    );
+    if (
+      err instanceof DOMException &&
+      /NotAllowed|NotFound|Overconstrained|Security/.test(err.name)
+    ) {
+      show("");
+      void showMicDialog(micProblemFromError(err, isEmbedded())).then((ok) => {
+        if (ok) show("Microphone allowed. Hold the button or Space bar and speak.");
+      });
+    } else {
+      show(
+        err instanceof ScribeError ? "Speech recognition failed. Try again." : apiErrorMessage(err),
+        true,
+      );
+    }
   } finally {
     busy = false;
     if (sessionId) {
