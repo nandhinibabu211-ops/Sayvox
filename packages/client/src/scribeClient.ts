@@ -195,7 +195,7 @@ export class ScribeSession {
         () => this.fail(new ScribeError("timeout")),
         // 10 s: OpenRouter transcribes the whole clip on commit (ADR-012), then the Tanglish
         // pass may run (up to 3 s); Scribe realtime commits in ~0.3 s.
-        this.opts.commitTimeoutMs ?? 10_000,
+        this.opts.commitTimeoutMs ?? 8_000,
       );
       this.pending = { resolve, reject, timer };
       this.flush();

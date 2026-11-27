@@ -74,6 +74,10 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
     let seconds = 0;
     let capped = false;
     let finished = false;
+    let chunks = 0;
+    let committed = false;
+    let closedBy = "server";
+    let upstreamEvent = "";
     // `upstream` is created below; these only run later (on messages, timers, close).
     const sendUp = (msg: string) => upstream.send(msg);
 
@@ -88,8 +92,9 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
     const stop = () => finish(1001);
     active.add(stop);
 
-    function finish(clientCode: number): void {
+    function finish(clientCode: number, by?: string): void {
       if (finished) return;
+      if (by) closedBy = by;
       finished = true;
       active.delete(stop);
       if (idle) clearTimeout(idle);
@@ -98,7 +103,16 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       if (client.readyState === WebSocket.OPEN) client.close(clientCode);
       else if (client.readyState === WebSocket.CONNECTING) client.terminate();
       app.log.info(
-        { sessionId: t.sessionId, audioSeconds: Math.round(seconds * 100) / 100, capped },
+        {
+          sessionId: t.sessionId,
+          audioSeconds: Math.round(seconds * 100) / 100,
+          capped,
+          chunks,
+          committed,
+          closedBy,
+          closeCode: clientCode,
+          lastUpstream: upstreamEvent,
+        },
         "stream ended",
       );
       const charging = deps
@@ -125,6 +139,8 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
     };
     const upstream: SttUpstream = makeUpstream(t, {
       message: (text) => {
+        // Message type only (never the transcript) for the "stream ended" line.
+        upstreamEvent = /"message_type":"([a-z_]+)"/.exec(text)?.[1] ?? upstreamEvent;
         if (!deps.postprocess || !text.includes('"committed_transcript"')) return toClient(text);
         let m: { message_type?: string; text?: unknown };
         try {
@@ -148,10 +164,12 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       const raw = isBinary ? null : data.toString();
       const chunk = raw === null ? null : parseAudioChunk(raw);
       if (!chunk || raw === null) {
-        finish(1008);
+        finish(1008, "server:bad_message");
         return;
       }
       touch();
+      chunks++;
+      if (chunk.commit) committed = true;
       if (capped) return;
       if (seconds + chunk.seconds > t.maxSessionSeconds + 1e-6) {
         // Over the cap: forward nothing more, finalize what Scribe already has.
@@ -162,7 +180,7 @@ export function registerStreamProxy(app: FastifyInstance, deps: StreamDeps): voi
       seconds += chunk.seconds;
       sendUp(raw);
     });
-    client.on("close", () => finish(1000));
+    client.on("close", (code: number) => finish(1000, `client:${code}`));
     client.on("error", () => finish(1011));
   }
 

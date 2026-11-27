@@ -4,7 +4,12 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { SessionStartResponse, SettingsResponse } from "@sayvox/shared";
 import { openMicrophoneSettings } from "../onboarding/permissions";
 import { DEFAULT_PREFS } from "../services/modeResolver";
-import { DictationPipeline, type DictationEvent, type InsertOutcome } from "../services/pipeline";
+import {
+  DictationPipeline,
+  failureName,
+  type DictationEvent,
+  type InsertOutcome,
+} from "../services/pipeline";
 import { API_BASE_URL, CLIENT_VERSION, createApiClient } from "../services/runtime";
 import { ScribeSession, streamRewrite, streamUrl } from "@sayvox/client";
 import { credentialSessionStore } from "../services/session";
@@ -255,6 +260,11 @@ const pipeline = new DictationPipeline({
   },
   clientVersion: CLIENT_VERSION,
   rewrite: (req, onToken) => streamRewrite(api, req, (_t, soFar) => onToken(soFar)),
+  reportFailure: (err) => {
+    const e = new Error("dictation failed");
+    e.name = failureName(err);
+    telemetry.crash(e, "scribe");
+  },
   recordTiming: (record) => void invoke("timing_append", { record }).catch(() => {}),
   modePrefs: () =>
     prefs ? { defaultMode: prefs.defaultMode, overrides: prefs.appModeOverrides } : DEFAULT_PREFS,
